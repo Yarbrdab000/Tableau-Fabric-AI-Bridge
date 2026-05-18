@@ -89,7 +89,7 @@ Before you start, make sure you have:
 
 | Requirement | Notes |
 |-------------|-------|
-| Tableau Cloud **or** Tableau Server 2025.1+ | VDS is not available on earlier Tableau Server versions |
+| Tableau Cloud **or** Tableau Server 2025.1+ (Or Tableau Cloud Trial Site) | VDS is not available on earlier Tableau Server versions |
 | **Creator license** on the Tableau site | Required for VDS API access — Viewer/Explorer licenses will not work |
 | A **published data source** in Tableau | The data source must be published to the site, not just embedded in a workbook |
 | **API Access** enabled on the data source | Check in Tableau: Data Source → More actions → Edit Connection → API Access |

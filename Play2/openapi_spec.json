@@ -1,0 +1,110 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Tableau VDS Query API",
+    "description": "Queries live Tableau data sources via the VizQL Data Service API.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "YOUR_LOGIC_APP_TRIGGER_URL"
+    }
+  ],
+  "paths": {
+    "/": {
+      "post": {
+        "operationId": "queryTableauData",
+        "summary": "Query live Tableau data",
+        "description": "Queries the Tableau Superstore data source. Available fields: Category, Sub-Category, Region, State/Province, City, Segment, Product Name, Customer Name, Order Date, Sales, Profit, Quantity, Discount, Profit Ratio. Use fieldCaption to specify fields and function to apply aggregation (SUM, AVG, COUNT, MIN, MAX) or date truncation (YEAR, QUARTER, MONTH, WEEK, DAY).",
+        "parameters": [
+          {
+            "name": "api-version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "2016-10-01"
+            }
+          },
+          {
+            "name": "sp",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "/triggers/When_an_HTTP_request_is_received/run"
+            }
+          },
+          {
+            "name": "sv",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "1.0"
+            }
+          },
+          {
+            "name": "sig",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "YOUR_LOGIC_APP_SIG"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query_fields"],
+                "properties": {
+                  "query_fields": {
+                    "type": "array",
+                    "description": "Fields to query. Each field requires a fieldCaption. Measures and dates should include a function.",
+                    "items": {
+                      "type": "object",
+                      "required": ["fieldCaption"],
+                      "properties": {
+                        "fieldCaption": {
+                          "type": "string",
+                          "description": "Exact field name from the Tableau data source"
+                        },
+                        "function": {
+                          "type": "string",
+                          "description": "Aggregation or date function. Measures: SUM, AVG, COUNT, COUNTD, MIN, MAX. Dates: YEAR, QUARTER, MONTH, WEEK, DAY.",
+                          "enum": ["SUM", "AVG", "COUNT", "COUNTD", "MIN", "MAX", "YEAR", "QUARTER", "MONTH", "WEEK", "DAY"]
+                        }
+                      }
+                    },
+                    "example": [
+                      {"fieldCaption": "Order Date", "function": "YEAR"},
+                      {"fieldCaption": "Category"},
+                      {"fieldCaption": "Sales", "function": "SUM"},
+                      {"fieldCaption": "Profit", "function": "SUM"}
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -28,7 +28,7 @@ tableau-fabric-ai-bridge/
 | Play | What it does | Status |
 |------|-------------|--------|
 | **Play 1** | Pull governed Tableau data sources into Fabric Lakehouse via VDS API | ✅ Complete |
-| **Play 2** | Connect a Fabric Data Agent to Tableau via the Tableau MCP Server | 🔄 In progress |
+| **Play 2** | Connect a Fabric Data Agent to Tableau via the Tableau MCP Server | ✅ Complete  |
 | **Play 3** | Surface Tableau metadata and lineage inside OneLake Catalog | 📋 Planned |
 
 ---

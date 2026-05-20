@@ -2,7 +2,7 @@
 
 > **"Your Tableau data, answered in natural language — no migration required."**
 
-This play connects an Azure AI Foundry agent (GPT-4o) to a published Tableau data source via the VizQL Data Service (VDS) API. Business users ask questions in plain English. The agent queries live Tableau data in real time and returns a natural language answer.
+This play connects an Azure AI Foundry agent (GPT-4o) to a published Tableau datasource via the VizQL Data Service (VDS) API. Business users ask questions in plain English. The agent queries live Tableau data in real time and returns a natural language answer.
 
 **This is not a data pipeline.** No data is copied, ingested, or replicated. The agent talks directly to Tableau at query time.
 
@@ -34,10 +34,11 @@ User (natural language answer)
 
 | File | Purpose |
 |------|---------|
-| `template.json` | ARM template — deploys the Logic App to Azure |
-| `main.bicep` | Bicep equivalent of the ARM template |
+| `deploy_logicapp.bicep` | Step 1 — deploys the Logic App with managed identity enabled |
+| `deploy_connection.bicep` | Step 2 — deploys the Key Vault connection and full Logic App workflow |
 | `openapi_spec.json` | OpenAPI spec — paste into Foundry as the tool definition |
 | `agent_instructions.md` | Foundry agent instructions — paste into the Instructions field |
+| `Play1_Agent_Instructions_Generator.ipynb` | Utility notebook — auto-generates agent instructions from your datasource |
 
 ---
 
@@ -46,127 +47,89 @@ User (natural language answer)
 Before starting, you need:
 
 - **Tableau Cloud or Tableau Server 2025.1+** with at least one Creator license
-- A **published data source** on your Tableau site
+- A **published datasource** on your Tableau site
 - An **Azure subscription** with permission to create Logic Apps and Key Vaults
 - An **Azure AI Foundry project** with GPT-4o deployed
-- A **Tableau Personal Access Token (PAT)** — generate one in your Tableau account settings
+- A **Tableau Personal Access Token (PAT)** — generate one in your Tableau account settings. Set the expiration to the maximum allowed value (up to 1 year) to avoid the Logic App silently failing mid-demo when the PAT expires
+- The **Setup Reference** filled in: open `Setup/setup_reference.html` and have it ready
 
-> 🔄 **Adapting for your environment:** This play was built and tested against Tableau Cloud. If you are using Tableau Server, the API endpoints are the same but replace `YOUR_TABLEAU_POD` with your server hostname (e.g. `tableau.yourcompany.com`).
+> 🔄 **Adapting for your environment:** This play was built and tested against Tableau Cloud. For Tableau Server, replace `YOUR_TABLEAU_POD` with your server hostname e.g. `tableau.yourcompany.com`.
 
 ---
 
-## Step 1 — Store Your PAT Secret in Azure Key Vault
+## Step 1 — Create Your Key Vault and Store the PAT Secret
 
 Your Tableau PAT secret must be stored in Azure Key Vault. The Logic App retrieves it at runtime via managed identity — it is never hardcoded anywhere.
 
-**If you already have a Key Vault:**
-1. Go to your Key Vault → **Secrets** → **Generate/Import**
-2. Name: choose a name (e.g. `tableau-pat-secret`) — note this for later
-3. Value: paste your Tableau PAT secret
-4. Click **Create**
-
-**If you need to create a Key Vault:**
 1. portal.azure.com → **Key Vaults** → **Create**
-2. Choose your subscription, resource group, and region
+2. Choose your subscription, resource group, and region — **use the same region for everything in this play**
 3. Permission model: **Azure role-based access control (RBAC)**
-4. Create, then add the secret as above
+4. **Create**
+5. Once created → **Secrets** → **Generate/Import**
 
-> 🔄 **Adapting for your environment:** Note your Key Vault name, resource group, subscription ID, and secret name — you will need all four in Step 2.
+> ⚠️ **RBAC propagation:** After creating a new Key Vault you may see "The operation is not allowed by RBAC" when navigating to Secrets. Wait 2-3 minutes and refresh — this is normal and resolves on its own.
+
+6. Name: your secret name e.g. `tableau-pat-secret` — note this for the deploy command
+7. Value: paste your Tableau PAT secret
+8. **Create**
+
+**Set Key Vault networking:**
+1. Key Vault → **Networking**
+2. Check **Allow trusted Microsoft services to bypass this firewall**
+3. **Save**
+
+> ⚠️ **Known limitation:** On some Consumption Logic App configurations the trusted services bypass is insufficient. If the Logic App fails to retrieve the secret at runtime, set **Allow public access from all networks** temporarily. For production, use Logic Apps Standard which handles Key Vault references natively.
 
 ---
 
 ## Step 2 — Deploy the Logic App
 
-The Logic App handles all Tableau authentication and API calls. Deploy it using the provided ARM template or Bicep file.
+The deployment uses two Bicep files run in sequence. The full command sequence is auto-generated in `Setup/setup_reference.html` — fill in all your values there first and copy the generated command block.
 
-### Option A — Deploy via Azure Portal (recommended for first-time setup)
+**Before running:**
+1. Open [Azure Cloud Shell](https://portal.azure.com/#cloudshell) in your browser
+2. Upload both `deploy_logicapp.bicep` and `deploy_connection.bicep` via **Manage files → Upload**
+3. Copy the full deploy sequence from the Setup Reference and paste it into Cloud Shell
 
-1. portal.azure.com → search **Deploy a custom template** → **Build your own template in the editor**
-2. Paste the contents of `template.json` → **Save**
-3. Fill in the parameters:
+**What the command sequence does:**
+1. Deploys the Logic App with managed identity enabled
+2. Automatically grants the Logic App **Key Vault Secrets User** role on your Key Vault
+3. Waits 3 minutes for RBAC to propagate
+4. **During the wait (important):** go to Azure Portal → **API Connections** → find `keyvault-{your-region}` → **General** → **Edit API connection** → **Authorize** → **Save**
+5. Deploys the Key Vault connection and full Logic App workflow
 
-| Parameter | What to enter |
-|-----------|--------------|
-| `tableau_pod` | Your Tableau Cloud pod e.g. `10ay.online.tableau.com` |
-| `tableau_site` | Your site contentUrl slug e.g. `mycompany` (find it in your Tableau URL) |
-| `tableau_pat_name` | Your PAT name exactly as it appears in Tableau account settings |
-| `tableau_datasource_luid` | The LUID of your target data source (see Finding Your Datasource LUID below) |
-| `keyvault_secret_name` | The name of the secret you created in Step 1 |
-| `connections_keyvault_externalid` | Resource ID of your Key Vault API connection (see note below) |
-| `keyvault_managed_api_location` | Managed API ID for Key Vault in your region (see note below) |
+> ⚠️ **Expected behavior:** The first deployment will show a `WorkflowManagedIdentityConfigurationInvalid` error before the role assignment is granted — this is normal and expected. The sequence handles this automatically.
 
-4. Click **Review + create** → **Create**
+> ⚠️ **Rerunning:** The command sequence is safe to rerun. `RoleAssignmentExists` errors are suppressed automatically.
 
-### Option B — Deploy via Azure CLI
-
-```bash
-az deployment group create \
-  --resource-group YOUR_RESOURCE_GROUP \
-  --template-file template.json \
-  --parameters tableau_pod=YOUR_POD \
-               tableau_site=YOUR_SITE \
-               tableau_pat_name=YOUR_PAT_NAME \
-               tableau_datasource_luid=YOUR_LUID \
-               keyvault_secret_name=YOUR_SECRET_NAME \
-               connections_keyvault_externalid=YOUR_KV_CONNECTION_ID \
-               keyvault_managed_api_location=YOUR_KV_MANAGED_API_ID
-```
-
-> 🔄 **Finding the Key Vault connection parameters:** After deploying, if the Key Vault connection parameters are unclear, you can create a Key Vault API connection manually in the portal (Logic Apps → API Connections → Add → Key Vault) and then copy its resource ID from the Properties blade.
+> ⚠️ **Subscription ID:** Use the GUID format (e.g. `f108977f-bc85-4ab6-a29e-ee78a8b03fa8`) not the display name when filling in the Setup Reference.
 
 ---
 
-## Step 3 — Enable Managed Identity on the Logic App
+## Step 3 — Get Your Logic App Trigger URL
 
-The Logic App uses a system-assigned managed identity to authenticate to Key Vault without storing credentials.
-
-1. Go to your deployed Logic App → **Settings** → **Identity**
-2. Under **System assigned** → toggle **Status** to **On** → **Save**
-3. Copy the **Object (principal) ID** that appears — you need it for Step 4
-
----
-
-## Step 4 — Grant the Logic App Access to Key Vault
-
-1. Go to your Key Vault → **Access control (IAM)** → **Add role assignment**
-2. Role: **Key Vault Secrets User**
-3. Assign access to: **Managed identity**
-4. Select your Logic App by name
-5. **Review + assign**
-
-### Fix Key Vault Networking
-
-By default Key Vault may block external requests. You need to allow trusted Microsoft services:
-
-1. Key Vault → **Settings** → **Networking**
-2. Check **Allow trusted Microsoft services to bypass this firewall**
-3. **Save**
-
-> ⚠️ **Known limitation:** On some configurations the trusted services bypass is insufficient for Consumption Logic Apps using the Key Vault connector. If the Logic App still fails to retrieve the secret, temporarily set **Allow public access from all networks** to unblock the demo. For production deployments use Logic Apps Standard, which supports Key Vault references natively via app settings without this networking constraint.
-
----
-
-## Step 5 — Get Your Logic App Trigger URL
-
-1. Go to your Logic App → **Overview** → **Trigger history** or open the designer
-2. Click the **When an HTTP request is received** trigger
-3. Copy the **HTTP POST URL** — this is your Logic App trigger URL
+1. Go to your Logic App in the Azure Portal
+2. Open the **designer**
+3. Click the **When an HTTP request is received** trigger
+4. Copy the **HTTP POST URL**
 
 It will look like:
 ```
-https://prod-XX.westus2.logic.azure.com:443/workflows/YOUR_WORKFLOW_ID/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=...&sv=1.0&sig=YOUR_SIG
+https://prod-XX.westus3.logic.azure.com:443/workflows/YOUR_WORKFLOW_ID/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=...&sv=1.0&sig=YOUR_SIG
 ```
+
+Save this in the **Logic App trigger URL** field in the Setup Reference.
 
 ---
 
-## Step 6 — Configure the OpenAPI Spec
+## Step 4 — Configure the OpenAPI Spec
 
 Open `openapi_spec.json` and replace the two placeholder values:
 
 ```json
 "servers": [
   {
-    "url": "YOUR_LOGIC_APP_TRIGGER_URL"  ← paste your full trigger URL here
+    "url": "YOUR_LOGIC_APP_TRIGGER_URL"
   }
 ],
 ```
@@ -176,126 +139,110 @@ And in the `sig` parameter default:
 {
   "name": "sig",
   "schema": {
-    "default": "YOUR_LOGIC_APP_SIG"  ← paste just the sig value here
+    "default": "YOUR_LOGIC_APP_SIG"
   }
 }
 ```
 
-> 🔄 **Adapting for your environment:** The `sig` value is the SAS token at the end of your trigger URL (everything after `sig=`). The other query parameters (`api-version`, `sp`, `sv`) are standard and don't need to change.
+> The `sig` value is everything after `sig=` in your trigger URL. The other query parameters (`api-version`, `sp`, `sv`) are standard — do not change them.
 
 ---
 
-## Step 7 — Update the Agent Instructions
+## Step 5 — Generate Agent Instructions
 
-Open `agent_instructions.md` and update the field list to match your actual data source. The current instructions reference Superstore fields — replace them with the fields from your published data source.
+Use `Play1_Agent_Instructions_Generator.ipynb` to auto-generate the agent instructions from your Tableau datasource. No Fabric lakehouse required.
 
-To find your available fields:
-1. Open your data source in Tableau
-2. Go to the data source editor — all field names listed there are valid `fieldCaption` values for VDS queries
-3. Note which fields are dimensions (no aggregation needed) and which are measures (require SUM, AVG, etc.)
+1. Open the notebook in Fabric (or any Jupyter environment)
+2. Fill in Cell 1:
+   - `PAT_NAME` — your PAT name
+   - `PAT_SECRET` — your PAT secret value
+   - `POD` — your Tableau Cloud pod e.g. `10ay.online.tableau.com`
+   - `SITE` — your site contentUrl slug
+   - `DATASOURCE_LUID` — your datasource LUID (numeric ID from the Tableau Cloud URL)
+   - `DATASOURCE_NAME` — display name for the datasource
+3. Run all cells
+4. Copy everything between the dividers in the Cell 4 output
 
-> 🔄 **Adapting for your environment:** Field captions must exactly match what appears in Tableau. Case and spacing matter. `Sub-Category` is not the same as `Sub Category`.
+> **Finding your datasource LUID:** Open the datasource in Tableau Cloud — the LUID is the numeric ID in the URL e.g. `114001783`. It is **not** a UUID format.
+
+If you prefer to edit manually, open `agent_instructions.md` and update the field list to match your datasource. Field captions must exactly match what appears in Tableau — `Sub-Category` is not the same as `Sub Category`.
 
 ---
 
-## Step 8 — Create the Foundry Agent
+## Step 6 — Create the Foundry Agent
 
 1. Go to [ai.azure.com](https://ai.azure.com) → your project → **Agents** → **New agent**
-2. Model: **GPT-4o** (recommended — GPT-4o mini may struggle with complex query construction)
-3. Name it something descriptive e.g. `tableau-vds-agent`
-4. Paste the contents of `agent_instructions.md` into the **Instructions** field
-5. Under **Tools** → **Add** → **Custom** → **OpenAPI**
+2. Model: **GPT-4o** (GPT-4o mini may struggle with complex query construction)
+3. Name: e.g. `tableau-vds-agent`
+4. Paste the Cell 4 output from the instructions generator into the **Instructions** field
+5. **Tools** → **Add** → **Custom** → **OpenAPI**
 6. Paste the updated contents of `openapi_spec.json`
 7. Authentication: **Anonymous** (the Logic App SAS token handles security)
 8. **Save**
 
 ---
 
-## Step 9 — Test
+## Step 7 — Test
 
-Ask the agent a natural language question about your data. Good starter questions:
+Ask the agent a natural language question about your data:
 
 - *"What were total sales by category?"*
-- *"How many unique orders were placed in [State]?"*
-- *"What was the percent difference in sales between last year and this year?"*
+- *"How many unique orders were placed in California?"*
 - *"Show me profit by region for Q1"*
+- *"What was the top performing sub-category last year?"*
 
-If it works, you should get a natural language answer with specific numbers within 10-15 seconds.
+You should get a natural language answer with specific numbers within 10-15 seconds.
 
 ---
 
 ## Finding Your Datasource LUID
 
-The LUID (Locally Unique Identifier) is the unique ID of your published data source. You need it to tell VDS which data source to query.
-
-**Option A — Via Tableau REST API:**
-```
-GET https://YOUR_POD/api/3.24/auth/signin  (authenticate first)
-GET https://YOUR_POD/api/3.24/sites/YOUR_SITE_ID/datasources
-```
-The response includes a `datasource` array — each item has an `id` field. That is the LUID.
-
-**Option B — Via Tableau Cloud UI:**
-1. Go to your Tableau Cloud site → **Explore** → find your data source
-2. Click on it → the URL contains the LUID:
-   `https://YOUR_POD/datasources/YOUR_LUID/...`
-
-**Option C — Via the Play 3 notebook** (if you have Play 3 set up):
-The data source discovery cell prints the LUID of every data source on your site.
+| Method | How |
+|--------|-----|
+| Tableau Cloud UI | Open the datasource → the numeric ID in the URL is the LUID e.g. `114001783` |
+| Instructions Generator notebook | Run `Play1_Agent_Instructions_Generator.ipynb` — it discovers all datasources and prints their LUIDs |
+| Tableau REST API | `GET /api/3.24/sites/{siteId}/datasources` — each item has an `id` field |
 
 ---
 
-## Known Limitations and Gotchas
+## Known Limitations
 
-### Foundry agent response size limit
-The Foundry agent has a maximum payload size for tool responses. Raw row-level queries against large data sources will exceed this limit. Always use aggregation functions (SUM, AVG, COUNT, COUNTD) on measures and date truncation (YEAR, QUARTER, MONTH) on date fields. The agent instructions enforce this, but be aware of it if you modify the instructions.
+**Foundry agent response size limit**
+Always use aggregation functions (SUM, AVG, COUNT, COUNTD) on measures and date truncation (YEAR, QUARTER, MONTH) on dates. Raw row-level queries will exceed the payload limit. The generated agent instructions enforce this automatically.
 
-### Tableau relationship-based data sources
-Tableau data sources built with the modern relationship model (introduced in Tableau 2020.2, now the default) keep logical tables separate and resolve joins at query time. When VDS queries a field from a related table, it performs a join at that moment — rows without a match are silently dropped, which can affect aggregate totals.
+**Tableau relationship-based datasources**
+VDS performs joins at query time when fields from multiple logical tables are requested. Rows without a match are silently dropped, which can affect aggregate totals. Query fields from one logical table at a time, or create a pre-flattened published datasource.
 
-**Before connecting any data source to this play:**
-- Check the data model in Tableau's data source editor
-- If the source uses relationships (multiple logical tables connected by lines), treat each logical table as independent
-- Either query only fields from the primary table, or create a dedicated published data source that pre-flattens the tables you need via a traditional join
+**High cardinality dimensions**
+Dimensions with many unique values (Order ID as a dimension, exact dates, Customer Name) produce large result sets. The instructions restrict these by default — apply the same judgment if you add fields.
 
-> This is not a limitation specific to this play — it affects any tool built on VDS, including the official Tableau MCP Server. Understanding the data model is a prerequisite for building AI interfaces over Tableau data sources.
+**PAT expiry**
+PATs expire after a configurable period. Set expiration to the maximum when generating. When a PAT expires, update the secret value in Key Vault — the Logic App picks it up automatically on the next run, no redeployment needed.
 
-### High cardinality dimensions
-Dimensions with many unique values (Order ID, Customer Name, Product Name, exact dates) will produce large result sets that may exceed Foundry's response limit. The agent instructions restrict Order ID to COUNTD only and require date truncation. If you add new fields to the instructions, apply the same judgment.
-
-### Key Vault networking on Consumption Logic Apps
-See Step 4 note above. Logic Apps Standard resolves this cleanly via app settings.
-
-### Tableau Server version requirement
-VDS requires Tableau Server 2025.1 or later. Customers on earlier versions need to upgrade before this play is possible.
-
-### PAT expiry
-Tableau PATs expire after a configurable period (default 15 days on Tableau Cloud). When your PAT expires, update the secret value in Key Vault — the Logic App will pick up the new value automatically on the next run. No Logic App changes needed.
+**Tableau Server version**
+VDS requires Tableau Server 2025.1 or later.
 
 ---
 
 ## Production Hardening Notes
 
-This play is designed as a demo asset. For production deployment consider:
-
 - **Logic Apps Standard** — supports Key Vault references natively, eliminates the networking complexity
 - **Private endpoints** on Key Vault — removes the need for public network access
-- **JWT authentication** instead of PAT — better for service account flows, supports more granular scoping
-- **Error handling in the Logic App** — add failure branches to handle Tableau auth failures, VDS errors, and Key Vault access failures gracefully
-- **Rate limiting awareness** — VDS queries count against a site-wide cap of 100 queries/hour per Creator license. High-frequency agent usage in a multi-user deployment needs to account for this
+- **Error handling** — add failure branches to the Logic App for Tableau auth failures, VDS errors, and Key Vault access failures
+- **Rate limiting** — VDS queries count against a site-wide cap of 100 calls/hour per Creator license
 
 ---
 
 ## Deployment Checklist
 
-- [ ] PAT secret stored in Key Vault
-- [ ] Logic App deployed from ARM template
-- [ ] Managed identity enabled on Logic App
-- [ ] Key Vault Secrets User role assigned to Logic App managed identity
-- [ ] Key Vault networking allows Logic App access
-- [ ] Logic App trigger URL copied
+- [ ] Key Vault created with PAT secret stored
+- [ ] Key Vault networking set to allow trusted Microsoft services
+- [ ] Both Bicep files uploaded to Cloud Shell
+- [ ] Full deploy sequence run successfully
+- [ ] API connection authorized in portal during the sleep window
+- [ ] Logic App trigger URL copied and saved in Setup Reference
 - [ ] `openapi_spec.json` updated with trigger URL and sig
-- [ ] `agent_instructions.md` updated with your data source fields
+- [ ] Instructions generator notebook run — output copied
 - [ ] Foundry agent created with GPT-4o
 - [ ] Instructions pasted into agent
 - [ ] OpenAPI tool added to agent
@@ -303,5 +250,5 @@ This play is designed as a demo asset. For production deployment consider:
 
 ---
 
-*Part of the Tableau + Microsoft Fabric AI Bridge project.*  
+*Part of the Tableau + Microsoft Fabric AI Bridge project.*
 *Play 2 (Tableau Metadata → Fabric Lakehouse), Play 3 (Tableau VDS → Fabric Lakehouse), and Play 4 (Semantic Model Generator) also available.*

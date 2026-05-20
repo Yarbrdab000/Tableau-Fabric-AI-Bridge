@@ -103,9 +103,9 @@
         </div>
       </div>
       <div class="field full">
-        <div class="field-label">Datasource LUID <span style="font-weight:400;font-style:italic;font-size:10px;">(numeric ID in Tableau Cloud datasource URL)</span></div>
+        <div class="field-label">Datasource LUID <span style="font-weight:400;font-style:italic;font-size:10px;">(GUID from REST API — run the instructions generator notebook)</span></div>
         <div class="field-row">
-          <input class="field-input" id="tableau_luid" placeholder="e.g. 114001783" oninput="save()" />
+          <input class="field-input" id="tableau_luid" placeholder="e.g. 0b2344cd-0347-400f-8107-e7ed8139abc3" oninput="save()" />
           <button class="copy-btn" onclick="copyField('tableau_luid',this)" title="Copy">&#x2398;</button>
         </div>
       </div>
@@ -279,7 +279,6 @@ function updateCmd() {
   if (!kv) missing.push('Key Vault name');
   if (!secret) missing.push('Key Vault secret name');
   if (!la) missing.push('Logic App name');
-  if (!region) missing.push('Region');
 
   const el = document.getElementById('cmd-text');
   if (missing.length > 0) {

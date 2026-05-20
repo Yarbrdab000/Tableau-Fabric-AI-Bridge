@@ -15,7 +15,7 @@
       "post": {
         "operationId": "queryTableauData",
         "summary": "Query live Tableau data",
-        "description": "Queries the Tableau Superstore data source. Available fields: Category, Sub-Category, Region, State/Province, City, Segment, Product Name, Customer Name, Order Date, Sales, Profit, Quantity, Discount, Profit Ratio. Use fieldCaption to specify fields and function to apply aggregation (SUM, AVG, COUNT, MIN, MAX) or date truncation (YEAR, QUARTER, MONTH, WEEK, DAY).",
+        "description": "Queries the Tableau datasource configured in the Logic App. Use fieldCaption to specify fields and function to apply aggregation (SUM, AVG, COUNT, COUNTD, MIN, MAX, MEDIAN) or date truncation (YEAR, QUARTER, MONTH, WEEK, DAY).",
         "parameters": [
           {
             "name": "api-version",
@@ -71,12 +71,15 @@
                       "properties": {
                         "fieldCaption": {
                           "type": "string",
-                          "description": "Exact field name from the Tableau data source"
+                          "description": "Exact field name from the Tableau datasource"
                         },
                         "function": {
                           "type": "string",
-                          "description": "Aggregation or date function. Measures: SUM, AVG, COUNT, COUNTD, MIN, MAX. Dates: YEAR, QUARTER, MONTH, WEEK, DAY.",
-                          "enum": ["SUM", "AVG", "COUNT", "COUNTD", "MIN", "MAX", "YEAR", "QUARTER", "MONTH", "WEEK", "DAY"]
+                          "description": "Aggregation or date function. Measures: SUM, AVG, COUNT, COUNTD, MIN, MAX, MEDIAN. Dates: YEAR, QUARTER, MONTH, WEEK, DAY.",
+                          "enum": [
+                            "SUM", "AVG", "COUNT", "COUNTD", "MIN", "MAX", "MEDIAN",
+                            "YEAR", "QUARTER", "MONTH", "WEEK", "DAY"
+                          ]
                         }
                       }
                     },
@@ -97,9 +100,7 @@
             "description": "Query results",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object"
-                }
+                "schema": {"type": "object"}
               }
             }
           }

@@ -10,8 +10,8 @@ param tableau_site string = 'YOUR_TABLEAU_SITE_CONTENTURLSLUG'
 @description('Tableau Personal Access Token name')
 param tableau_pat_name string = 'YOUR_PAT_NAME'
 
-@description('LUID of the target Tableau published datasource — find it in the Tableau Cloud URL when viewing the datasource')
-param tableau_datasource_luid string = 'YOUR_DATASOURCE_LUID'
+@description('LUID of the target Tableau published datasource. Get this from the Tableau REST API: GET /api/3.24/sites/{siteId}/datasources — find your datasource and copy the id field (GUID format e.g. 0b2344cd-0347-400f-8107-e7ed8139abc3). The Play 1 instructions generator notebook resolves this automatically.')
+param tableau_datasource_luid string = 'YOUR_DATASOURCE_LUID_GUID'
 
 @description('Name of your Azure Key Vault e.g. my-keyvault')
 param keyvault_name string = 'YOUR_KEYVAULT_NAME'
@@ -22,7 +22,7 @@ param keyvault_secret_name string = 'YOUR_KEYVAULT_SECRET_NAME'
 var location = resourceGroup().location
 var kv_connection_name = 'keyvault-${location}'
 
-// ── Key Vault API Connection ──────────────────────────────────────────────────
+// ── Key Vault API Connection (managed identity) ───────────────────────────────
 resource kvConnection 'Microsoft.Web/connections@2016-06-01' = {
   name: kv_connection_name
   location: location
@@ -38,7 +38,7 @@ resource kvConnection 'Microsoft.Web/connections@2016-06-01' = {
   }
 }
 
-// ── Logic App — update with full workflow definition ─────────────────────────
+// ── Logic App — full workflow definition ──────────────────────────────────────
 resource logicApp 'Microsoft.Logic/workflows@2017-07-01' = {
   name: logic_app_name
   location: location
@@ -67,11 +67,7 @@ resource logicApp 'Microsoft.Logic/workflows@2017-07-01' = {
                 query_fields: {
                   type: 'array'
                   items: {
-                    type: 'object'
-                    properties: {
-                      fieldCaption: { type: 'string' }
-                      function: { type: 'string' }
-                    }
+                    type: 'string'
                   }
                 }
               }

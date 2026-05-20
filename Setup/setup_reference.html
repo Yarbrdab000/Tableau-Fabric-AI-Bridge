@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tableau + Fabric AI Bridge — Setup Reference</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f7f7f5;
+    --bg-tertiary: #f0f0ec;
+    --text-primary: #1a1a18;
+    --text-secondary: #6b6b66;
+    --border: rgba(0,0,0,0.12);
+    --border-hover: rgba(0,0,0,0.25);
+    --success: #1d9e75;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e1c;
+      --bg-secondary: #2a2a28;
+      --bg-tertiary: #333330;
+      --text-primary: #f0f0ec;
+      --text-secondary: #9a9a94;
+      --border: rgba(255,255,255,0.1);
+      --border-hover: rgba(255,255,255,0.25);
+    }
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  header {
+    margin-bottom: 2rem;
+  }
+
+  header h1 {
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  header p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .card {
+    background: var(--bg);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .field {
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+  }
+
+  .field.full { grid-column: 1 / -1; }
+
+  .field-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .field-input {
+    flex: 1;
+    font-size: 13px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    outline: none;
+    font-family: var(--mono);
+    padding: 0;
+    min-width: 0;
+  }
+
+  .field-input::placeholder { color: var(--text-secondary); opacity: 0.6; }
+  .field-input[readonly] { color: var(--text-secondary); }
+
+  .copy-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1;
+    transition: color 0.1s;
+  }
+
+  .copy-btn:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+  .copy-btn.copied { color: var(--success); }
+
+  .note {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    margin-top: 1rem;
+    line-height: 1.5;
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+
+  .clear-btn {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: var(--sans);
+  }
+
+  .clear-btn:hover { background: var(--bg-secondary); }
+
+  .divider {
+    border: none;
+    border-top: 0.5px solid var(--border);
+    margin: 0.5rem 0 1.25rem;
+  }
+
+  .saved-indicator {
+    font-size: 11px;
+    color: var(--success);
+    opacity: 0;
+    transition: opacity 0.3s;
+    margin-left: 8px;
+  }
+
+  .saved-indicator.show { opacity: 1; }
+
+  @media (max-width: 500px) {
+    .field-grid { grid-template-columns: 1fr; }
+    .field.full { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header-row">
+    <header>
+      <h1>Tableau + Fabric AI Bridge — Setup Reference</h1>
+      <p>Fill in your values as you go through setup. Everything saves automatically to your browser.</p>
+    </header>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="saved-indicator" id="saved-indicator">Saved</span>
+      <button class="clear-btn" onclick="clearAll()">Clear all</button>
+    </div>
+  </div>
+
+  <!-- TABLEAU -->
+  <div class="card">
+    <div class="section-title">Tableau</div>
+    <div class="field-grid">
+      <div class="field">
+        <div class="field-label">Pod hostname</div>
+        <div class="field-row">
+          <input class="field-input" id="tableau_pod" placeholder="10ay.online.tableau.com" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('tableau_pod',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Site contentUrl slug</div>
+        <div class="field-row">
+          <input class="field-input" id="tableau_site" placeholder="your-site-slug  (blank = default)" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('tableau_site',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">PAT name</div>
+        <div class="field-row">
+          <input class="field-input" id="tableau_pat_name" placeholder="my-pat-name" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('tableau_pat_name',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Site ID</div>
+        <div class="field-row">
+          <input class="field-input" id="tableau_site_id" placeholder="returned after auth" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('tableau_site_id',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field full">
+        <div class="field-label">Datasource LUID</div>
+        <div class="field-row">
+          <input class="field-input" id="tableau_luid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('tableau_luid',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AZURE -->
+  <div class="card">
+    <div class="section-title">Azure</div>
+    <div class="field-grid">
+      <div class="field">
+        <div class="field-label">Subscription ID</div>
+        <div class="field-row">
+          <input class="field-input" id="azure_sub" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('azure_sub',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Resource group</div>
+        <div class="field-row">
+          <input class="field-input" id="azure_rg" placeholder="my-resource-group" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('azure_rg',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Key Vault name</div>
+        <div class="field-row">
+          <input class="field-input" id="kv_name" placeholder="my-keyvault" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('kv_name',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Key Vault secret name</div>
+        <div class="field-row">
+          <input class="field-input" id="kv_secret" placeholder="tableau-pat-secret" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('kv_secret',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field full">
+        <div class="field-label">Key Vault URL <span style="font-weight:400;font-style:italic;">(auto-built)</span></div>
+        <div class="field-row">
+          <input class="field-input" id="kv_url" placeholder="auto-built from Key Vault name" readonly />
+          <button class="copy-btn" onclick="copyField('kv_url',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field full">
+        <div class="field-label">Logic App trigger URL <span style="font-weight:400;font-style:italic;">(Play 1, Step 5)</span></div>
+        <div class="field-row">
+          <input class="field-input" id="logic_app_url" placeholder="https://prod-XX.westus2.logic.azure.com:443/workflows/..." oninput="save()" />
+          <button class="copy-btn" onclick="copyField('logic_app_url',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FABRIC -->
+  <div class="card">
+    <div class="section-title">Microsoft Fabric</div>
+    <div class="field-grid">
+      <div class="field full">
+        <div class="field-label">Workspace ID</div>
+        <div class="field-row">
+          <input class="field-input" id="fabric_workspace" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('fabric_workspace',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Data lakehouse name</div>
+        <div class="field-row">
+          <input class="field-input" id="fabric_data_lh" placeholder="h1_ultrastore" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('fabric_data_lh',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Metadata lakehouse name</div>
+        <div class="field-row">
+          <input class="field-input" id="fabric_meta_lh" placeholder="Metadata_Lakehouse" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('fabric_meta_lh',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+      <div class="field full">
+        <div class="field-label">Data lakehouse ID <span style="font-weight:400;font-style:italic;">(auto-resolved by Play 4, or find in Fabric portal)</span></div>
+        <div class="field-row">
+          <input class="field-input" id="fabric_data_lh_id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" oninput="save()" />
+          <button class="copy-btn" onclick="copyField('fabric_data_lh_id',this)" title="Copy">&#x2398;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    Values are saved automatically to your browser's local storage and persist between sessions on this device. Nothing is sent anywhere — all data stays local.
+  </div>
+
+</div>
+
+<script>
+const FIELDS = ['tableau_pod','tableau_site','tableau_pat_name','tableau_site_id','tableau_luid','azure_sub','azure_rg','kv_name','kv_secret','logic_app_url','fabric_workspace','fabric_data_lh','fabric_meta_lh','fabric_data_lh_id'];
+
+function save() {
+  const data = {};
+  FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) data[id] = el.value;
+  });
+  try { localStorage.setItem('tfab_setup', JSON.stringify(data)); } catch(e) {}
+  updateDerived();
+  const ind = document.getElementById('saved-indicator');
+  ind.classList.add('show');
+  setTimeout(() => ind.classList.remove('show'), 1500);
+}
+
+function load() {
+  try {
+    const data = JSON.parse(localStorage.getItem('tfab_setup') || '{}');
+    FIELDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && data[id] !== undefined) el.value = data[id];
+    });
+  } catch(e) {}
+  updateDerived();
+}
+
+function updateDerived() {
+  const kvName = (document.getElementById('kv_name').value || '').trim();
+  document.getElementById('kv_url').value = kvName ? `https://${kvName}.vault.azure.net/` : '';
+}
+
+function copyField(id, btn) {
+  const el = document.getElementById(id);
+  if (!el || !el.value) return;
+  navigator.clipboard.writeText(el.value).then(() => {
+    btn.textContent = '✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.innerHTML = '&#x2398;'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+function clearAll() {
+  if (!confirm('Clear all saved values?')) return;
+  FIELDS.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  try { localStorage.removeItem('tfab_setup'); } catch(e) {}
+  updateDerived();
+}
+
+load();
+</script>
+</body>
+</html>

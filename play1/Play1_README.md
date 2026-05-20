@@ -1,4 +1,4 @@
-# Play 2 — Foundry Agent → Tableau VDS via Logic App
+# Play 1 — Foundry Agent → Tableau VDS via Logic App
 
 > **"Your Tableau data, answered in natural language — no migration required."**
 
@@ -240,7 +240,7 @@ The response includes a `datasource` array — each item has an `id` field. That
 2. Click on it → the URL contains the LUID:
    `https://YOUR_POD/datasources/YOUR_LUID/...`
 
-**Option C — Via the Play 1 notebook** (if you have Play 1 set up):
+**Option C — Via the Play 3 notebook** (if you have Play 3 set up):
 The data source discovery cell prints the LUID of every data source on your site.
 
 ---
@@ -304,4 +304,4 @@ This play is designed as a demo asset. For production deployment consider:
 ---
 
 *Part of the Tableau + Microsoft Fabric AI Bridge project.*  
-*Play 1 (Tableau VDS → Fabric Lakehouse) and Play 3 (Tableau Metadata → OneLake Catalog) also available.*
+*Play 2 (Tableau Metadata → Fabric Lakehouse), Play 3 (Tableau VDS → Fabric Lakehouse), and Play 4 (Semantic Model Generator) also available.*

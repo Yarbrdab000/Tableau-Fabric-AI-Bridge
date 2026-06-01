@@ -6,8 +6,11 @@ description: >-
   datasource-level migration signals (unsupported custom SQL, calculated-field
   count, RLS/user references). Optionally adds value-level statistics
   (cardinality, null rates, numeric ranges, date ranges) via the VizQL Data
-  Service. Use this when a user wants to understand, inventory, audit, or assess
-  the migration readiness of a Tableau datasource, or before landing it in
+  Service. Also includes a **natural-language query** tool (`query_datasource.py`)
+  that executes structured VizQL Data Service queries (aggregations, filters,
+  sorting, top-N) so an agent can answer business questions from the data. Use
+  this when a user wants to understand, inventory, audit, query, or assess the
+  migration readiness of a Tableau datasource, or before landing it in
   Microsoft Fabric (Plays 2–4 of this repo). Read-only; never modifies Tableau.
 ---
 
@@ -101,12 +104,43 @@ Select the datasource with **either** `--datasource-name` (resolved to a LUID vi
 `--dry-run`, `--page-size`, `--max-fields-per-query`, `--rest-version`, `--auth pat|jwt`,
 `--jwt-username`.
 
+## Querying data in natural language (`query_datasource.py`)
+
+The companion `query_datasource.py` answers business questions by executing a structured
+**VizQL Data Service query**. The agent translates the user's natural-language question into a
+query object (an array of `fields` plus optional `filters`); the tool runs it and returns rows.
+
+```bash
+# "Sales and profit by region, highest first"
+python .github/skills/tableau-datasource-profiler/scripts/query_datasource.py \
+  --datasource-name "Superstore" --query-json \
+  '{"fields":[{"fieldCaption":"Region"},{"fieldCaption":"Sales","function":"SUM","sortDirection":"DESC","sortPriority":1},{"fieldCaption":"Profit","function":"SUM"}]}'
+
+# "Top 5 states by sales" (TOP filter), as JSON
+python .github/skills/tableau-datasource-profiler/scripts/query_datasource.py \
+  --datasource-name "Superstore" --query-file q.json --format json
+```
+
+Query shape (see the script header for the full schema):
+- **Fields** — dimension `{"fieldCaption":"Region"}` (groups), measure
+  `{"fieldCaption":"Sales","function":"SUM"}` (aggregates; also AVG/COUNT/COUNTD/MIN/MAX/…),
+  calculated `{"fieldCaption":"x","calculation":"<formula>"}`, bin `{"fieldCaption":"x","binSize":n}`.
+  Optional `fieldAlias`, `sortDirection` (ASC|DESC), `sortPriority`.
+- **Filters** — `SET` (values list), `MATCH` (contains/startsWith/endsWith), `QUANTITATIVE_NUMERICAL`
+  / `QUANTITATIVE_DATE` (RANGE/MIN/MAX/ONLY_NULL/ONLY_NON_NULL), relative `DATE`
+  (periodType + dateRangeType), and `TOP` (howMany + fieldToMeasure) for rankings.
+
+Flags: `--query-json` or `--query-file` (required), `--row-limit` (default 100, 0 = unlimited),
+`--disaggregate`, `--format md|json`, `--out`, `--dry-run`, `--auth pat|jwt`, `--jwt-username`,
+`--rest-version`. Same env vars and auth as the profiler.
+
 ## Agent guidance
 
 - Prefer the default schema profile first; only add `--with-stats` when the user explicitly
   wants value-level numbers, because VDS is rate-limited.
-- If credentials are not set, run with `--dry-run` to show the user what would be sent, then
-  ask them to provide the environment variables.
+- To answer a data question, first run `profile_datasource.py` to learn the exact field captions,
+  then build a `query_datasource.py` query. Prefer aggregation and use `TOP`/filters to keep
+  responses small. VDS allows ~100 calls/hour per Creator, so batch intent into one query.
 - The tool is strictly read-only and always signs out. It never writes to Tableau.
 - For complete value stats unaffected by RLS, use a Site Admin PAT, or `--auth jwt` with
   `TABLEAU_JWT_USERNAME` set to a Site Admin (Connected App Direct Trust impersonation).

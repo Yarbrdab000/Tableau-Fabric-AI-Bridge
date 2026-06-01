@@ -50,7 +50,21 @@ python scripts/profile_datasource.py --datasource-name "Superstore" --auth jwt -
 > **live-tested** against a real Tableau Cloud connected app (sign-in + Metadata API + VDS
 > authorization all confirmed).
 
-## What you get
+## Two tools
+
+- **`profile_datasource.py`** — schema + optional value statistics (below).
+- **`query_datasource.py`** — answers business questions by running a structured **VizQL Data
+  Service query** (aggregations, filters, sorting, top-N). An agent turns a natural-language
+  question into the query object; the tool executes it and returns rows (md or json). Example:
+
+  ```bash
+  python scripts/query_datasource.py --datasource-name "Superstore" --query-json \
+    '{"fields":[{"fieldCaption":"Region"},{"fieldCaption":"Sales","function":"SUM"}]}'
+  ```
+
+  See [`SKILL.md`](./SKILL.md) and the script header for the full field/filter schema.
+
+## What the profiler gives you
 
 - **Schema profile (default, no rate limit):** per-field role, data type, hidden
   flag, folder, description, calculated-field formulas, and lineage; plus datasource-level
@@ -65,6 +79,7 @@ python scripts/profile_datasource.py --datasource-name "Superstore" --auth jwt -
 
 ## How it fits this repo
 
-This is the first reusable skill on top of the same APIs that power the Tableau → Fabric
-bridge. Its output feeds the later motions: migration-readiness scoring, DAX translation of
-harvested calculated-field formulas, phased-migration scoping, and post-migration parity tests.
+These are the first reusable skills on top of the same APIs that power the Tableau → Fabric
+bridge — and the core tools a hosted **MCP server** would expose so customers can query Tableau
+from Microsoft Copilot. Their output also feeds later motions: migration-readiness scoring, DAX
+translation of harvested calculated-field formulas, phased-migration scoping, and parity tests.

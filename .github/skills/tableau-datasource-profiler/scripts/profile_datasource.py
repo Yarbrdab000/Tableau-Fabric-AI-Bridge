@@ -294,8 +294,11 @@ class TableauClient:
             return None
         return data.get("data", [])
 
-    def vds_query(self, luid: str, query: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
-        body = {"datasource": {"datasourceLuid": luid}, "query": query}
+    def vds_query(self, luid: str, query: Dict[str, Any],
+                  options: Optional[Dict[str, Any]] = None) -> Optional[List[Dict[str, Any]]]:
+        body: Dict[str, Any] = {"datasource": {"datasourceLuid": luid}, "query": query}
+        if options:
+            body["options"] = options
         data = self._vds_post("/query-datasource", body)
         if data is None:
             return None
@@ -752,6 +755,47 @@ def _jwt_scopes_from_env() -> Optional[List[str]]:
         return None
     parts = [s.strip() for s in raw.replace(",", " ").split()]
     return [s for s in parts if s] or None
+
+
+def connect_from_env(
+    rest_version: str, auth: str = "pat", jwt_username: Optional[str] = None
+) -> "TableauClient":
+    """Build and sign in a TableauClient using environment variables.
+
+    Shared by the profiler and the query tool (and a future MCP server). Raises
+    TableauError listing any missing variables. `auth` is 'pat' (default) or 'jwt'.
+    """
+    _require_requests()
+    server = os.environ.get("TABLEAU_SERVER", "")
+    site = os.environ.get("TABLEAU_SITE", "")
+    auth = (auth or "pat").lower()
+    if not server:
+        raise TableauError("missing required env var: TABLEAU_SERVER")
+    client = TableauClient(server, site, rest_version)
+    if auth == "jwt":
+        cid = os.environ.get("TABLEAU_CONNECTED_APP_CLIENT_ID", "")
+        sid = os.environ.get("TABLEAU_CONNECTED_APP_SECRET_ID", "")
+        sval = os.environ.get("TABLEAU_CONNECTED_APP_SECRET_VALUE", "")
+        user = jwt_username or os.environ.get("TABLEAU_JWT_USERNAME", "")
+        missing = [n for n, v in [
+            ("TABLEAU_CONNECTED_APP_CLIENT_ID", cid),
+            ("TABLEAU_CONNECTED_APP_SECRET_ID", sid),
+            ("TABLEAU_CONNECTED_APP_SECRET_VALUE", sval),
+            ("TABLEAU_JWT_USERNAME (or --jwt-username)", user),
+        ] if not v]
+        if missing:
+            raise TableauError(f"missing required env var(s): {', '.join(missing)}")
+        client.sign_in_jwt(cid, sid, sval, user, _jwt_scopes_from_env())
+    else:
+        pat_name = os.environ.get("TABLEAU_PAT_NAME", "")
+        pat_value = os.environ.get("TABLEAU_PAT_VALUE", "")
+        missing = [n for n, v in [
+            ("TABLEAU_PAT_NAME", pat_name), ("TABLEAU_PAT_VALUE", pat_value),
+        ] if not v]
+        if missing:
+            raise TableauError(f"missing required env var(s): {', '.join(missing)}")
+        client.sign_in(pat_name, pat_value)
+    return client
 
 
 def main(argv: Optional[List[str]] = None) -> int:

@@ -34,14 +34,16 @@ Two API paths:
    datasource-level signals (`containsUnsupportedCustomSql`, `hasUserReference`, certification).
 2. **VizQL Data Service (VDS)** — optional (`--with-stats`). Adds value statistics:
    approximate row count, per-field null rates, dimension cardinality (COUNTD), numeric
-   MIN/MAX/AVG, and date MIN/MAX. Because VDS forbids referencing the same field twice in
-   one query, each aggregate function is sent as its own batched query (one for all COUNTs,
-   one for all COUNTDs, one each for numeric MIN/MAX/AVG, one each for date MIN/MAX) — about
-   7 calls plus chunking for very wide datasources. Stays under the **100 VDS calls/hour per
-   Creator** limit and aborts value stats with a clear note if the estimate would exceed it.
-   Requires Tableau 2025.1+ with VDS enabled; if unavailable the skill degrades gracefully
-   to the schema profile. (Row count is approximated as the max non-null count across fields,
-   since VDS has no COUNT(*).)
+   MIN/MAX/AVG, and date MIN/MAX. Each aggregate function is sent as its own batched query
+   (VDS forbids referencing the same field twice in one query) — roughly 7 calls plus
+   chunking for very wide datasources. Fields VDS can't aggregate are handled robustly:
+   bins/groups/sets are excluded up front, and any batch that 400s or returns multiple rows
+   (a field acting as a GROUP BY) is split and retried so one bad field doesn't sink the rest.
+   Stays under the **100 VDS calls/hour per Creator** limit, aborts up front if the estimate
+   would exceed it, and degrades to the schema profile (with a note) on a 429. Requires
+   Tableau 2025.1+ with VDS enabled; if unavailable the skill degrades gracefully to the
+   schema profile. (Row count is approximated as the max non-null count across fields, since
+   VDS has no COUNT(*); value stats also reflect only rows the PAT user can see under RLS.)
 
 ## Setup
 

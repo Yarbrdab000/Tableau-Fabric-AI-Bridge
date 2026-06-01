@@ -29,8 +29,10 @@ python scripts/profile_datasource.py --datasource-name "Superstore" --dry-run   
 - **Value stats (`--with-stats`, optional):** approximate row count, null rates, cardinality,
   numeric ranges, and date ranges via the VizQL Data Service — sent one aggregate function per
   query (VDS forbids repeating a field in a query) and batched to respect the 100 calls/hour
-  per-Creator limit; value stats are skipped with a note if the estimate would exceed it.
-  Requires Tableau 2025.1+ with VDS enabled; degrades to schema-only if not.
+  per-Creator limit. Bin/group/set and other non-aggregatable fields are skipped robustly
+  (batches that 400 or return grouped rows are split and retried), and stats degrade to
+  schema-only with a note on a 429. Requires Tableau 2025.1+ with VDS enabled. Note: value
+  stats reflect only rows the PAT user can see under RLS — use a Site Admin PAT for full data.
 
 ## How it fits this repo
 

@@ -21,9 +21,37 @@ python scripts/profile_datasource.py --datasource-name "Superstore" --with-stats
 python scripts/profile_datasource.py --datasource-name "Superstore" --dry-run   # show requests only
 ```
 
+### Auth: PAT (default) or Connected App JWT
+
+PAT is the default. Alternatively, sign in with a **Connected App (Direct Trust)** JWT via
+`--auth jwt`. This avoids PAT rotation and lets you **act as a specific user** (`sub` claim) —
+use a Site Admin to bypass RLS and get complete value stats. The JWT is built and signed
+(HS256) with the standard library, so there is **no extra dependency**.
+
+Set up in Tableau Cloud (**Settings → Connected Apps → New Connected App → Direct Trust**):
+create the app, generate and **enable** a secret, and grant these JWT access scopes:
+`tableau:content:read` and `tableau:viz_data_service:read` (the latter is needed for
+`--with-stats`). Then:
+
+```bash
+export TABLEAU_SERVER="https://10ax.online.tableau.com"
+export TABLEAU_SITE="your_site_content_url"
+export TABLEAU_CONNECTED_APP_CLIENT_ID="<connected app Client ID>"
+export TABLEAU_CONNECTED_APP_SECRET_ID="<Secret ID>"
+export TABLEAU_CONNECTED_APP_SECRET_VALUE="<Secret Value>"
+export TABLEAU_JWT_USERNAME="admin@example.com"   # user to act as (Site Admin for full data)
+# optional: override scopes (space/comma separated)
+# export TABLEAU_JWT_SCOPES="tableau:content:read tableau:viz_data_service:read"
+
+python scripts/profile_datasource.py --datasource-name "Superstore" --auth jwt --with-stats
+```
+
+> The JWT structure is validated against Tableau's official sign-in reference and unit-tested
+> offline. Live-test it once your connected app is registered and enabled.
+
 ## What you get
 
-- **Schema profile (default, no rate limit):** per-field role, data type, aggregation, hidden
+- **Schema profile (default, no rate limit):** per-field role, data type, hidden
   flag, folder, description, calculated-field formulas, and lineage; plus datasource-level
   migration signals (`containsUnsupportedCustomSql`, calculated-field count, `hasUserReference`).
 - **Value stats (`--with-stats`, optional):** approximate row count, null rates, cardinality,

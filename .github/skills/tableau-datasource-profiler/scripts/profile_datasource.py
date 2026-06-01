@@ -5,12 +5,15 @@ Read-only. Two API paths:
   * Metadata API (GraphQL, POST /api/metadata/graphql) -> schema/catalog/lineage. Default. No VDS rate limit.
   * VizQL Data Service (POST /api/v1/vizql-data-service/...) -> actual value stats. Optional (--with-stats).
 
-Auth is direct REST (PAT sign-in); no tableauserverclient dependency, so it works against
-Tableau Cloud and Server alike. Credentials come from environment variables:
+Auth is direct REST; no tableauserverclient dependency, so it works against Tableau Cloud
+and Server alike. Two modes (PAT default, Connected App Direct-Trust JWT opt-in via --auth jwt).
+Credentials come from environment variables:
     TABLEAU_SERVER     e.g. https://10ax.online.tableau.com  (or your Server URL)
     TABLEAU_SITE       site contentUrl (the site's URL slug; "" for the Default site)
-    TABLEAU_PAT_NAME   Personal Access Token name
-    TABLEAU_PAT_VALUE  Personal Access Token secret
+    TABLEAU_PAT_NAME   Personal Access Token name        (PAT auth)
+    TABLEAU_PAT_VALUE  Personal Access Token secret      (PAT auth)
+    TABLEAU_CONNECTED_APP_CLIENT_ID / _SECRET_ID / _SECRET_VALUE,
+    TABLEAU_JWT_USERNAME                                 (JWT auth; --auth jwt)
 
 Example:
     python profile_datasource.py --datasource-name "Superstore" --with-stats --format md
@@ -21,10 +24,15 @@ Example:
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
+import hmac
 import json
 import math
 import os
 import sys
+import time
+import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
@@ -88,6 +96,62 @@ class TableauError(RuntimeError):
     pass
 
 
+# --------------------------------------------------------------------------------------
+# Connected App (Direct Trust) JWT — built with the standard library (HS256), so no
+# extra dependency is required. Structure verified against Tableau's official sign-in
+# reference (rest_api_concepts_auth.htm): header {alg, kid, iss}; claims
+# {aud:"tableau", sub, scp, iss, exp, jti}. Signed with the connected app secret value.
+# --------------------------------------------------------------------------------------
+DEFAULT_JWT_SCOPES = ["tableau:content:read", "tableau:viz_data_service:read"]
+JWT_MAX_TTL_SECONDS = 600  # Tableau rejects connected-app JWTs with exp > ~10 minutes.
+
+
+def _b64url(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def build_connected_app_jwt(
+    client_id: str,
+    secret_id: str,
+    secret_value: str,
+    username: str,
+    scopes: Optional[List[str]] = None,
+    ttl_seconds: int = 300,
+) -> str:
+    """Build a signed HS256 JWT for Tableau Connected App (Direct Trust) sign-in.
+
+    `client_id`  -> connected app Client ID (JWT `iss` + header context)
+    `secret_id`  -> connected app Secret ID (JWT header `kid`)
+    `secret_value` -> connected app Secret Value (HS256 signing key)
+    `username`   -> the Tableau user to act as (JWT `sub`); enables impersonation.
+    `scopes`     -> JWT-supported access scopes (JWT `scp`).
+    """
+    if not all([client_id, secret_id, secret_value, username]):
+        raise TableauError(
+            "JWT auth requires client_id, secret_id, secret_value, and username."
+        )
+    ttl = max(1, min(int(ttl_seconds), JWT_MAX_TTL_SECONDS))
+    header = {"alg": "HS256", "kid": secret_id, "iss": client_id}
+    now = int(time.time())
+    payload = {
+        "iss": client_id,
+        "aud": "tableau",
+        "sub": username,
+        "scp": list(scopes) if scopes else list(DEFAULT_JWT_SCOPES),
+        "exp": now + ttl,
+        "jti": str(uuid.uuid4()),
+    }
+    signing_input = (
+        _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+        + "."
+        + _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    )
+    signature = hmac.new(
+        secret_value.encode("utf-8"), signing_input.encode("ascii"), hashlib.sha256
+    ).digest()
+    return signing_input + "." + _b64url(signature)
+
+
 class VDSRateLimit(TableauError):
     """Raised on HTTP 429 from VDS (100 calls/hour per Creator exceeded)."""
     pass
@@ -127,6 +191,30 @@ class TableauClient:
                 "personalAccessTokenSecret": pat_value,
             }
         }
+        self._complete_signin(body)
+
+    def sign_in_jwt(
+        self,
+        client_id: str,
+        secret_id: str,
+        secret_value: str,
+        username: str,
+        scopes: Optional[List[str]] = None,
+    ) -> None:
+        """Sign in via a Connected App (Direct Trust) JWT, acting as `username`."""
+        _require_requests()
+        jwt = build_connected_app_jwt(
+            client_id, secret_id, secret_value, username, scopes
+        )
+        body = {
+            "credentials": {
+                "jwt": jwt,
+                "site": {"contentUrl": self.site_content_url},
+            }
+        }
+        self._complete_signin(body)
+
+    def _complete_signin(self, body: Dict[str, Any]) -> None:
         resp = requests.post(
             f"{self._rest_base}/auth/signin",
             data=json.dumps(body),
@@ -585,9 +673,16 @@ def do_dry_run(args: argparse.Namespace, server: str, site: str, rest_version: s
     out.append("# DRY RUN — no network calls will be made\n")
     out.append("## 1. Sign in (REST)")
     out.append(f"POST {server}/api/{rest_version}/auth/signin")
-    out.append(json.dumps(
-        {"credentials": {"site": {"contentUrl": site}, "personalAccessTokenName": "<PAT_NAME>",
-                         "personalAccessTokenSecret": "<PAT_VALUE>"}}, indent=2))
+    if getattr(args, "auth", "pat") == "jwt":
+        out.append("# Connected App (Direct Trust) JWT. Header {alg:HS256, kid:<secret-id>, "
+                   "iss:<client-id>}; claims {aud:'tableau', sub:<username>, scp:[...], "
+                   "iss:<client-id>, exp, jti}. Signed (HS256) with the connected app secret value.")
+        out.append(json.dumps(
+            {"credentials": {"jwt": "<signed-jwt>", "site": {"contentUrl": site}}}, indent=2))
+    else:
+        out.append(json.dumps(
+            {"credentials": {"site": {"contentUrl": site}, "personalAccessTokenName": "<PAT_NAME>",
+                             "personalAccessTokenSecret": "<PAT_VALUE>"}}, indent=2))
     if not args.datasource_luid:
         out.append("\n## 2. Resolve datasource LUID (REST)")
         out.append(f"GET {server}/api/{rest_version}/sites/<site-id>/datasources"
@@ -641,34 +736,81 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--page-size", type=int, default=200, help="GraphQL fieldsConnection page size (default 200).")
     p.add_argument("--max-fields-per-query", type=int, default=100,
                    help="Max fields per VDS query before chunking (default 100).")
+    p.add_argument("--auth", choices=["pat", "jwt"], default=os.environ.get("TABLEAU_AUTH", "pat"),
+                   help="Auth mode: 'pat' (default) or 'jwt' (Connected App Direct Trust).")
+    p.add_argument("--jwt-username",
+                   help="User to act as for JWT auth (overrides TABLEAU_JWT_USERNAME). "
+                        "Use a Site Admin to bypass RLS partial-data.")
     p.add_argument("--rest-version", default=os.environ.get("TABLEAU_REST_VERSION", DEFAULT_REST_VERSION),
                    help=f"Tableau REST API version (default {DEFAULT_REST_VERSION}).")
     return p.parse_args(argv)
 
 
+def _jwt_scopes_from_env() -> Optional[List[str]]:
+    raw = os.environ.get("TABLEAU_JWT_SCOPES", "").strip()
+    if not raw:
+        return None
+    parts = [s.strip() for s in raw.replace(",", " ").split()]
+    return [s for s in parts if s] or None
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
+    args.auth = (args.auth or "pat").lower()
 
     server = os.environ.get("TABLEAU_SERVER", "")
     site = os.environ.get("TABLEAU_SITE", "")
     pat_name = os.environ.get("TABLEAU_PAT_NAME", "")
     pat_value = os.environ.get("TABLEAU_PAT_VALUE", "")
 
+    # Connected App (Direct Trust) JWT auth inputs.
+    ca_client_id = os.environ.get("TABLEAU_CONNECTED_APP_CLIENT_ID", "")
+    ca_secret_id = os.environ.get("TABLEAU_CONNECTED_APP_SECRET_ID", "")
+    ca_secret_value = os.environ.get("TABLEAU_CONNECTED_APP_SECRET_VALUE", "")
+    jwt_username = args.jwt_username or os.environ.get("TABLEAU_JWT_USERNAME", "")
+    jwt_scopes = _jwt_scopes_from_env()
+
     if args.dry_run:
         text = do_dry_run(args, server or "https://<your-tableau-server>", site, args.rest_version)
         _emit(text, args.out)
         return 0
 
-    missing = [n for n, v in [
-        ("TABLEAU_SERVER", server), ("TABLEAU_PAT_NAME", pat_name), ("TABLEAU_PAT_VALUE", pat_value),
-    ] if not v]
+    if args.auth == "jwt":
+        if jwt_scopes is not None:
+            required_scopes = {"tableau:content:read"}
+            if args.with_stats:
+                required_scopes.add("tableau:viz_data_service:read")
+            missing_scopes = sorted(required_scopes - set(jwt_scopes))
+            if missing_scopes:
+                sys.stderr.write(
+                    "WARNING: TABLEAU_JWT_SCOPES is missing recommended scope(s): "
+                    f"{', '.join(missing_scopes)}. Sign-in may succeed but content or "
+                    "value-stats calls could fail.\n"
+                )
+        required = [
+            ("TABLEAU_SERVER", server),
+            ("TABLEAU_CONNECTED_APP_CLIENT_ID", ca_client_id),
+            ("TABLEAU_CONNECTED_APP_SECRET_ID", ca_secret_id),
+            ("TABLEAU_CONNECTED_APP_SECRET_VALUE", ca_secret_value),
+            ("TABLEAU_JWT_USERNAME (or --jwt-username)", jwt_username),
+        ]
+    else:
+        required = [
+            ("TABLEAU_SERVER", server),
+            ("TABLEAU_PAT_NAME", pat_name),
+            ("TABLEAU_PAT_VALUE", pat_value),
+        ]
+    missing = [n for n, v in required if not v]
     if missing:
         sys.stderr.write(f"ERROR: missing required env var(s): {', '.join(missing)}\n")
         return 2
 
     client = TableauClient(server, site, args.rest_version)
     try:
-        client.sign_in(pat_name, pat_value)
+        if args.auth == "jwt":
+            client.sign_in_jwt(ca_client_id, ca_secret_id, ca_secret_value, jwt_username, jwt_scopes)
+        else:
+            client.sign_in(pat_name, pat_value)
 
         if args.datasource_luid:
             luid, ds_name = args.datasource_luid, None

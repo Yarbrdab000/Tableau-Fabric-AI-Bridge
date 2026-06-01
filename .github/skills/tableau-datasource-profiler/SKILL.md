@@ -29,7 +29,7 @@ Use it when the user asks to:
 Two API paths:
 
 1. **Metadata API (GraphQL)** — the default, **no VDS rate limit**. Returns per-field
-   `name, role, dataType, aggregation, isHidden, folderName, description`,
+   `name, role, dataType, isHidden, folderName, description`,
    `CalculatedField.formula`, lineage (upstream tables / referenced columns), and
    datasource-level signals (`containsUnsupportedCustomSql`, `hasUserReference`, certification).
 2. **VizQL Data Service (VDS)** — optional (`--with-stats`). Adds value statistics:
@@ -62,6 +62,23 @@ complete inventory; a Creator PAT returns only what that user can see):
 | `TABLEAU_PAT_VALUE` | Personal Access Token secret |
 | `TABLEAU_REST_VERSION` | (optional) REST API version, default `3.24` |
 
+### Connected App (Direct Trust) JWT auth — optional
+
+Instead of a PAT, pass `--auth jwt` to sign in with a **Connected App (Direct Trust)** JWT.
+Benefits: no PAT rotation, and the `sub` claim lets the skill **act as a specific user** — use a
+Site Admin to bypass RLS and get complete value stats. The JWT is signed (HS256) with the
+standard library, so there is **no extra dependency**. In Tableau Cloud, create the connected
+app under **Settings → Connected Apps → Direct Trust**, generate and **enable** a secret, and
+grant the JWT scopes `tableau:content:read` and `tableau:viz_data_service:read`.
+
+| Variable | Meaning |
+|---|---|
+| `TABLEAU_CONNECTED_APP_CLIENT_ID` | Connected app Client ID (JWT `iss`) |
+| `TABLEAU_CONNECTED_APP_SECRET_ID` | Secret ID (JWT header `kid`) |
+| `TABLEAU_CONNECTED_APP_SECRET_VALUE` | Secret Value (HS256 signing key) |
+| `TABLEAU_JWT_USERNAME` | User to act as (JWT `sub`); or `--jwt-username` |
+| `TABLEAU_JWT_SCOPES` | (optional) space/comma-separated scope override |
+
 ## Usage
 
 ```bash
@@ -80,7 +97,8 @@ python .github/skills/tableau-datasource-profiler/scripts/profile_datasource.py 
 
 Select the datasource with **either** `--datasource-name` (resolved to a LUID via REST) **or**
 `--datasource-luid`. Other flags: `--format md|json`, `--out <path>`, `--with-stats`,
-`--dry-run`, `--page-size`, `--max-fields-per-query`, `--rest-version`.
+`--dry-run`, `--page-size`, `--max-fields-per-query`, `--rest-version`, `--auth pat|jwt`,
+`--jwt-username`.
 
 ## Agent guidance
 
@@ -89,5 +107,7 @@ Select the datasource with **either** `--datasource-name` (resolved to a LUID vi
 - If credentials are not set, run with `--dry-run` to show the user what would be sent, then
   ask them to provide the environment variables.
 - The tool is strictly read-only and always signs out. It never writes to Tableau.
+- For complete value stats unaffected by RLS, use a Site Admin PAT, or `--auth jwt` with
+  `TABLEAU_JWT_USERNAME` set to a Site Admin (Connected App Direct Trust impersonation).
 - Surface the migration signals (calculated-field count, `containsUnsupportedCustomSql`,
   `hasUserReference`) when the user's intent is migration to Fabric / Power BI.

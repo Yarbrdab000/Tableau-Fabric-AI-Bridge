@@ -244,6 +244,31 @@ class TableauClient:
             self.site_id = None
 
     # -- datasource resolution ----------------------------------------------------------
+    def list_datasources(self, page_size: int = 100) -> List[Dict[str, Any]]:
+        """Return published datasources on the site as [{luid, name, project}], paged."""
+        out: List[Dict[str, Any]] = []
+        page = 1
+        while True:
+            url = f"{self._rest_base}/sites/{self.site_id}/datasources"
+            params = {"pageSize": str(page_size), "pageNumber": str(page)}
+            resp = requests.get(url, headers=self._auth_headers(), params=params, timeout=60)
+            if resp.status_code != 200:
+                raise TableauError(
+                    f"List datasources failed ({resp.status_code}): {resp.text[:500]}"
+                )
+            body = resp.json()
+            for d in body.get("datasources", {}).get("datasource", []):
+                out.append({
+                    "luid": d.get("id", ""),
+                    "name": d.get("name", ""),
+                    "project": (d.get("project") or {}).get("name", ""),
+                })
+            total = int(body.get("pagination", {}).get("totalAvailable", len(out)) or len(out))
+            if page * page_size >= total or not body.get("datasources", {}).get("datasource"):
+                break
+            page += 1
+        return out
+
     def resolve_datasource_luid(self, name: str) -> Tuple[str, str]:
         """Return (luid, name) for the published datasource matching `name`."""
         url = f"{self._rest_base}/sites/{self.site_id}/datasources"

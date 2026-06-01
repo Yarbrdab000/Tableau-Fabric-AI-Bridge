@@ -1,0 +1,6 @@
+# Tableau-Fabric-AI-Bridge MCP server runtime dependencies.
+# The MCP SDK pulls in starlette + uvicorn (HTTP transport); requests is used by the
+# shared Tableau client. JWT signing uses only the Python standard library.
+mcp>=1.10,<2
+requests>=2.31,<3
+uvicorn>=0.30,<1

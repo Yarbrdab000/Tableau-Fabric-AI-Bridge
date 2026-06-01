@@ -69,7 +69,8 @@ Benefits: no PAT rotation, and the `sub` claim lets the skill **act as a specifi
 Site Admin to bypass RLS and get complete value stats. The JWT is signed (HS256) with the
 standard library, so there is **no extra dependency**. In Tableau Cloud, create the connected
 app under **Settings → Connected Apps → Direct Trust**, generate and **enable** a secret, and
-grant the JWT scopes `tableau:content:read` and `tableau:viz_data_service:read`.
+grant the JWT scopes `tableau:content:read` and `tableau:viz_data_service:read`. This mode is
+live-tested against a real Tableau Cloud connected app (sign-in + Metadata API + VDS authorization).
 
 | Variable | Meaning |
 |---|---|

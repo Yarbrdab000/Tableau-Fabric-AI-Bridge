@@ -46,8 +46,9 @@ export TABLEAU_JWT_USERNAME="admin@example.com"   # user to act as (Site Admin f
 python scripts/profile_datasource.py --datasource-name "Superstore" --auth jwt --with-stats
 ```
 
-> The JWT structure is validated against Tableau's official sign-in reference and unit-tested
-> offline. Live-test it once your connected app is registered and enabled.
+> The JWT structure is validated against Tableau's official sign-in reference and was
+> **live-tested** against a real Tableau Cloud connected app (sign-in + Metadata API + VDS
+> authorization all confirmed).
 
 ## What you get
 

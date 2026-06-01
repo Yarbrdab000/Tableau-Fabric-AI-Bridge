@@ -1,0 +1,13 @@
+# Keep the Docker build context small and secret-free.
+**/.git
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.env
+**/*.env
+mcp-server/docs
+Play3
+Play4
+play1
+play2
+Setup

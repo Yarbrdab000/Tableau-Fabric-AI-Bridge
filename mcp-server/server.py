@@ -30,8 +30,6 @@ Read-only: the server never modifies Tableau. It keeps one warm sign-in per work
 process (refreshed on a TTL or auth failure) and signs out on shutdown.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import re
@@ -77,6 +75,7 @@ from profile_datasource import (  # noqa: E402
 )
 
 from mcp.server.fastmcp import FastMCP  # noqa: E402
+from pydantic import BaseModel, ConfigDict, Field  # noqa: E402
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
@@ -215,11 +214,70 @@ def get_datasource_schema(datasource: str) -> str:
     return _execute(_do)
 
 
+class QueryField(BaseModel):
+    """One column in a VizQL Data Service query (a dimension, measure, calc, or bin)."""
+
+    model_config = ConfigDict(extra="allow")  # pass through any VDS property not named here
+
+    fieldCaption: str = Field(
+        description="Exact field caption as shown by get_datasource_schema, e.g. 'Sales' "
+        "or 'Region'. Required."
+    )
+    function: Optional[str] = Field(
+        default=None,
+        description="Aggregation for a measure: SUM, AVG, MEDIAN, COUNT, COUNTD, MIN, MAX, "
+        "STDEV, VAR, or a date part/trunc like YEAR, QUARTER, MONTH, WEEK, DAY, "
+        "TRUNC_YEAR, TRUNC_QUARTER, TRUNC_MONTH, TRUNC_WEEK, TRUNC_DAY. Omit for a "
+        "plain dimension (which groups the result).",
+    )
+    calculation: Optional[str] = Field(
+        default=None,
+        description="Inline calculation expression for a calculated field, e.g. "
+        "'[Profit]/[Sales]'. Provide with a fieldCaption that names the result.",
+    )
+    binSize: Optional[float] = Field(
+        default=None, description="Bucket size to bin a numeric field into ranges."
+    )
+    sortDirection: Optional[str] = Field(
+        default=None, description="Sort order for this field: 'ASC' or 'DESC'."
+    )
+    sortPriority: Optional[int] = Field(
+        default=None,
+        description="Sort key order when sorting by multiple fields; 1 = primary sort key.",
+    )
+    fieldAlias: Optional[str] = Field(
+        default=None, description="Rename the output column."
+    )
+    maxDecimalPlaces: Optional[int] = Field(
+        default=None, description="Round numeric output to this many decimal places."
+    )
+
+
+class QueryFilter(BaseModel):
+    """One filter in a VizQL Data Service query. Extra keys depend on filterType."""
+
+    model_config = ConfigDict(extra="allow")  # carry filterType-specific keys verbatim
+
+    filterType: str = Field(
+        description="Filter kind: 'SET' (keep/exclude specific values via 'values' + "
+        "optional 'exclude'), 'MATCH' (text 'contains'/'startsWith'/'endsWith'), "
+        "'QUANTITATIVE_NUMERICAL' ('quantitativeFilterType' RANGE|MIN|MAX|ONLY_NULL|"
+        "ONLY_NON_NULL with 'min'/'max'), 'QUANTITATIVE_DATE' (same with 'minDate'/"
+        "'maxDate' as ISO yyyy-mm-dd), 'DATE' (relative: 'periodType' e.g. MONTHS, "
+        "'dateRangeType' e.g. LASTN, 'rangeN'), or 'TOP' ('howMany', 'direction' "
+        "TOP|BOTTOM, 'fieldToMeasure')."
+    )
+    field: Dict[str, Any] = Field(
+        description="The field this filter targets, e.g. {'fieldCaption': 'Region'}. "
+        "A TOP filter omits this and uses 'fieldToMeasure' instead."
+    )
+
+
 @mcp.tool()
 def query_datasource(
     datasource: str,
-    fields: List[Dict[str, Any]],
-    filters: Optional[List[Dict[str, Any]]] = None,
+    fields: List[QueryField],
+    filters: Optional[List[QueryFilter]] = None,
     row_limit: int = 100,
     disaggregate: bool = False,
 ) -> str:
@@ -262,14 +320,18 @@ def query_datasource(
         disaggregate: Return row-level data instead of aggregates (disabled unless the
             host allows it; use sparingly).
     """
-    if not isinstance(fields, list) or not fields:
+    if not fields:
         return json.dumps(
             {"error": "`fields` must be a non-empty list. Call get_datasource_schema first."}
         )
 
-    query: Dict[str, Any] = {"fields": fields}
+    # Models accept extra keys (extra="allow"); model_dump preserves them while dropping
+    # unset optionals so the VDS payload stays clean.
+    query: Dict[str, Any] = {
+        "fields": [f.model_dump(exclude_none=True) for f in fields]
+    }
     if filters:
-        query["filters"] = filters
+        query["filters"] = [f.model_dump(exclude_none=True) for f in filters]
 
     # Clamp the row limit: unlimited (<=0) or oversized values fall back to the cap.
     if not isinstance(row_limit, int) or row_limit <= 0 or row_limit > _MAX_ROW_LIMIT:

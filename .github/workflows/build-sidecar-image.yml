@@ -1,0 +1,49 @@
+name: Build and publish auth sidecar image
+
+# Publishes the Play 1 auth sidecar container (front door for the OFFICIAL Tableau MCP
+# image) to GitHub Container Registry (GHCR). Runs on GitHub-hosted runners — no local
+# Docker needed. After the first successful run, make the package public once
+# (repo > Packages > tableau-fabric-ai-bridge-sidecar > Package settings > Change
+# visibility) so the "Deploy to Azure" button can pull it without registry credentials.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Play1/sidecar/**'
+      - '.github/workflows/build-sidecar-image.yml'
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/tableau-fabric-ai-bridge-sidecar
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lowercase image name
+        id: img
+        run: echo "image=${IMAGE,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: Play1/sidecar
+          file: Play1/sidecar/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.img.outputs.image }}:latest
+            ${{ steps.img.outputs.image }}:${{ github.sha }}

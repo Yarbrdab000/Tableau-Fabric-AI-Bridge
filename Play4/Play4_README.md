@@ -1,6 +1,6 @@
 # Play 4 — Semantic Model Generator
 
-> Part of the [Tableau + Microsoft Fabric AI Bridge](../../README.md) project.
+> Part of the [Tableau + Microsoft Fabric AI Bridge](../README.md) project.
 
 ## What This Does
 
@@ -9,6 +9,7 @@ Reads the datasource and field metadata from Play 2 and generates a fully struct
 Each generated semantic model:
 - Has one table per upstream source table, pointing at the Play 3 Delta tables via DirectLake
 - Has all columns with correct data types and `summarizeBy` settings derived from Tableau field roles
+- Has cross-table relationships auto-inferred from Tableau's hidden join keys — many-to-one direction determined from the landed Delta cardinality and emitted as `relationships.tmdl`
 - Has a `_Measures` table with DAX measure stubs for every Tableau calculated field (original Tableau formula preserved as an annotation)
 - Is immediately queryable in Fabric — no manual steps required
 
@@ -70,7 +71,8 @@ Each model structure:
 ├── Orders          ← DirectLake → superstore_datasource_orders
 ├── People          ← DirectLake → superstore_datasource_people
 ├── Returns         ← DirectLake → superstore_datasource_returns
-└── _Measures       ← DAX stubs for calculated fields
+├── _Measures       ← DAX stubs for calculated fields
+└── relationships   ← auto-mapped many-to-one joins (relationships.tmdl)
 ```
 
 ---
@@ -79,13 +81,14 @@ Each model structure:
 
 | Generated automatically | Left for the SE / customer |
 |------------------------|---------------------------|
-| All tables from upstream sources | Relationships between tables |
-| All columns with correct data types | DAX measure translations |
+| All tables from upstream sources | DAX measure translations |
+| All columns with correct data types | Relationships with no Tableau-exposed join key |
 | `summarizeBy` from Tableau field roles | Row-level security |
-| Hidden flag removed (all fields visible) | Report-level formatting |
+| Relationships from Tableau's hidden join keys (many-to-one) | Report-level formatting |
 | Calculated field stubs with original formula | Hierarchies |
+| Hidden flag removed (all fields visible) | |
 
-**Relationships are intentionally not generated.** The customer knows their data model; we don't. All the tables and join key columns are there — wiring relationships takes minutes once the model is open.
+**Relationships are auto-mapped where Tableau exposes a join key.** Play 4 infers cross-table relationships from Tableau's hidden disambiguated join keys and sets the many-to-one direction from the landed Delta cardinality, emitting them as `relationships.tmdl`. Relationships it can't infer — no exposed key, or an ambiguous match — are left for review; the tables and join key columns are all present, so wiring the rest takes minutes.
 
 **DAX stubs** — calculated fields are stubbed as `= 0` with the original Tableau formula preserved in an annotation. Find them in `_Measures`, translate to DAX, done.
 

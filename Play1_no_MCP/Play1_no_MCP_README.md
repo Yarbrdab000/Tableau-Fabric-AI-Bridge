@@ -161,7 +161,7 @@ Use `Play1_Agent_Instructions_Generator.ipynb` to auto-generate the agent instru
    - `DATASOURCE_LUID` — your datasource LUID (numeric ID from the Tableau Cloud URL)
    - `DATASOURCE_NAME` — display name for the datasource
 3. Run all cells
-4. Copy everything between the dividers in the Cell 4 output
+4. Copy everything between the dividers in the Cell 5 output
 
 > **Finding your datasource LUID:** Open the datasource in Tableau Cloud — the LUID is the numeric ID in the URL e.g. `114001783`. It is **not** a UUID format.
 
@@ -174,7 +174,7 @@ If you prefer to edit manually, open `agent_instructions.md` and update the fiel
 1. Go to [ai.azure.com](https://ai.azure.com) → your project → **Agents** → **New agent**
 2. Model: **GPT-4o** (GPT-4o mini may struggle with complex query construction)
 3. Name: e.g. `tableau-vds-agent`
-4. Paste the Cell 4 output from the instructions generator into the **Instructions** field
+4. Paste the Cell 5 output from the instructions generator into the **Instructions** field
 5. **Tools** → **Add** → **Custom** → **OpenAPI**
 6. Paste the updated contents of `openapi_spec.json`
 7. Authentication: **Anonymous** (the Logic App SAS token handles security)

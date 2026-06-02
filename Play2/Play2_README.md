@@ -1,6 +1,6 @@
 # Play 2 — Tableau Metadata Bridge
 
-> Part of the [Tableau + Microsoft Fabric AI Bridge](../../README.md) project.
+> Part of the [Tableau + Microsoft Fabric AI Bridge](../README.md) project.
 
 ## What This Does
 

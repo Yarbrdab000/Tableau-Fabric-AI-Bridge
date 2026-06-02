@@ -4,7 +4,7 @@
 // server container with external HTTPS ingress and scale-to-zero. Tableau Connected
 // App credentials and the MCP API key are stored as Container App secrets.
 //
-// Deploy from the portal via the "Deploy to Azure" button (see ../../README.md), or:
+// Deploy from the portal via the "Deploy to Azure" button (see ../../Play1_README.md), or:
 //   az deployment group create -g <rg> -f main.bicep -p @main.parameters.json
 
 @description('Azure region for all resources. Defaults to the resource group location.')

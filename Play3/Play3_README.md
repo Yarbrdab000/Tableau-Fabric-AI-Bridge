@@ -1,10 +1,10 @@
 # Play 3 — VizQL Data Service Bridge
 
-> Part of the [Tableau + Microsoft Fabric AI Bridge](../../README.md) project.
+> Part of the [Tableau + Microsoft Fabric AI Bridge](../README.md) project.
 
 ## What This Does
 
-Reads the datasource and field inventory from Play 3's metadata tables, then uses Tableau's VizQL Data Service (VDS) REST API to pull each upstream table from each published datasource into the Fabric Lakehouse as individual Delta tables.
+Reads the datasource and field inventory from Play 2's metadata tables, then uses Tableau's VizQL Data Service (VDS) REST API to pull each upstream table from each published datasource into the Fabric Lakehouse as individual Delta tables.
 
 **Key design decision:** VDS is queried once per upstream table, using only that table's fields. This prevents cross-table inner joins that would silently reduce row counts. Each Delta table contains clean, complete row-level data.
 

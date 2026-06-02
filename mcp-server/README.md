@@ -119,6 +119,46 @@ MCP_TRANSPORT=http PORT=8000 MCP_API_KEY=dev-secret python server.py
 - **Least privilege:** scope the Tableau Connected App to `tableau:content:read` and
   `tableau:viz_data_service:read` only.
 
+### Row-level security (RLS) & per-user identity passthrough
+
+**This repo ships with a single service-account model** — every Copilot user's question is
+answered as the one `TABLEAU_JWT_USERNAME` you configure, so Tableau row-level security is
+**not** applied per end user (and is bypassed entirely if that account is a Site/Server
+Admin). This is intentional for a simple, low-friction v1.
+
+To make the deployment **respect RLS per end user**, the server must impersonate the calling
+user by setting the Connected App JWT `sub` to *their* Tableau username (the
+`build_connected_app_jwt(..., username=...)` primitive already supports this). For that to
+work end-to-end, the following must be in place:
+
+**Tableau configuration**
+- **Define RLS on the datasource(s).** Use user filters / data-source filters with
+  `USERNAME()` / `USERMEMBEROF()`, or Tableau's centralized row-level security with
+  entitlement tables. Identity alone restricts nothing if no RLS policy exists.
+- **Provision the end users onto the Tableau site**, ideally via **SCIM** from your identity
+  provider (e.g. Microsoft Entra). SCIM keeps the user set in sync and — crucially — keeps
+  Tableau usernames aligned with the Entra identity (UPN/email), so `sub = <Entra UPN>`
+  matches a real Tableau user with no hand-maintained mapping table.
+- **Configure the Connected App for impersonation** and ensure impersonated users are
+  licensed. The impersonated user must **not** be a Site/Server Admin (admins see all rows).
+- Keep SSO/identity settings consistent so the Tableau username equals the identity asserted
+  by your IdP (SCIM handles this when configured).
+
+**Platform / server configuration (not included in this repo's v1)**
+- **Identity passthrough** from Copilot Studio / Azure AI Foundry: configure the MCP tool's
+  auth so the signed-in user's **Entra token** is forwarded to the server (OAuth
+  on-behalf-of), instead of (or in addition to) the shared `x-api-key`.
+- **Token validation on the server:** validate the incoming Entra JWT (signature via JWKS,
+  audience, issuer, expiry), extract the `upn`/`email`, and use it as the Tableau `sub` —
+  **never** accept the username as a tool argument (spoofable).
+- **Per-user sessions:** cache Tableau sign-ins keyed by user (mind VDS per-user rate limits),
+  and **fail closed** — reject requests without a verified identity rather than falling back
+  to the service account.
+
+**Summary:** with **SCIM (Entra↔Tableau) + identity passthrough + RLS defined on the
+datasource**, the solution enforces row-level security per user. Without those, it operates
+as a shared service account and all users see the same data.
+
 ---
 
 ## Architecture

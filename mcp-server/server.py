@@ -269,7 +269,8 @@ class QueryFilter(BaseModel):
     )
     field: Dict[str, Any] = Field(
         description="The field this filter targets, e.g. {'fieldCaption': 'Region'}. "
-        "A TOP filter omits this and uses 'fieldToMeasure' instead."
+        "For a TOP filter this is the dimension being ranked (e.g. Region); the "
+        "measure to rank by goes in 'fieldToMeasure'."
     )
 
 
@@ -306,8 +307,11 @@ def query_datasource(
       * QUANTITATIVE_DATE      same as above with "minDate"/"maxDate" as ISO yyyy-mm-dd
       * DATE (relative)        {"filterType":"DATE","periodType":"MONTHS",
                                 "dateRangeType":"LASTN","rangeN":3}
-      * TOP                    {"filterType":"TOP","howMany":5,"direction":"TOP",
+      * TOP                    {"filterType":"TOP","field":{"fieldCaption":"Region"},
+                                "howMany":5,"direction":"TOP",
                                 "fieldToMeasure":{"fieldCaption":"Sales","function":"SUM"}}
+                                ("field" = the dimension to rank; "fieldToMeasure" = the
+                                measure to rank it by)
 
     Best practices: prefer aggregation over row-level data; use a TOP filter for
     "top N" questions; keep results small.

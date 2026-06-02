@@ -1,4 +1,4 @@
-# Tableau-Fabric-AI-Bridge — MCP Server
+# Play 1 — Tableau MCP Server (Microsoft AI landing zone)
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that lets an AI agent
 — **Microsoft Copilot Studio / M365 Copilot**, GitHub Copilot, Claude Desktop, etc. —
@@ -20,7 +20,7 @@ Read-only: it never modifies Tableau. It keeps one warm sign-in per worker proce
 
 ## One-click deploy (recommended for customers)
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FYarbrdab000%2FTableau-Fabric-AI-Bridge%2Fmain%2Fmcp-server%2Fdeploy%2Fazure%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FYarbrdab000%2FTableau-Fabric-AI-Bridge%2Fmain%2FPlay1%2Fdeploy%2Fazure%2Fazuredeploy.json)
 
 This deploys the server to **Azure Container Apps** with HTTPS, scale-to-zero (near-zero
 idle cost), and your Tableau credentials stored as secrets. You fill in a short form and
@@ -41,11 +41,11 @@ After deployment you get an **MCP endpoint** like
 No hosting required — great for trying it in GitHub Copilot, VS Code, or Claude Desktop.
 
 ```bash
-cd mcp-server
+cd Play1
 python -m pip install -r requirements.txt
 cp .env.example .env        # then edit: set TABLEAU_AUTH=pat and your TABLEAU_PAT_* values
 
-# stdio transport (default) — point your MCP client at: python mcp-server/server.py
+# stdio transport (default) — point your MCP client at: python Play1/server.py
 MCP_TRANSPORT=stdio python server.py
 ```
 
@@ -56,7 +56,7 @@ Example MCP client config (GitHub Copilot / VS Code / Claude Desktop):
   "mcpServers": {
     "tableau": {
       "command": "python",
-      "args": ["C:/path/to/mcp-server/server.py"],
+      "args": ["C:/path/to/Play1/server.py"],
       "env": {
         "TABLEAU_SERVER": "https://10ay.online.tableau.com",
         "TABLEAU_SITE": "your-site",

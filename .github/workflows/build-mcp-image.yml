@@ -10,7 +10,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'mcp-server/**'
+      - 'Play1/**'
       - '.github/skills/tableau-datasource-profiler/scripts/**'
       - '.github/workflows/build-mcp-image.yml'
   workflow_dispatch:
@@ -43,7 +43,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: mcp-server/Dockerfile
+          file: Play1/Dockerfile
           push: true
           tags: |
             ${{ steps.img.outputs.image }}:latest

@@ -10,7 +10,7 @@ param tableau_site string = 'YOUR_TABLEAU_SITE_CONTENTURLSLUG'
 @description('Tableau Personal Access Token name')
 param tableau_pat_name string = 'YOUR_PAT_NAME'
 
-@description('LUID of the target Tableau published datasource. Get this from the Tableau REST API: GET /api/3.24/sites/{siteId}/datasources — find your datasource and copy the id field (GUID format e.g. 0b2344cd-0347-400f-8107-e7ed8139abc3). The Play 1 instructions generator notebook resolves this automatically.')
+@description('LUID of the target Tableau published datasource. Get this from the Tableau REST API: GET /api/3.24/sites/{siteId}/datasources — find your datasource and copy the id field (GUID format e.g. 0b2344cd-0347-400f-8107-e7ed8139abc3). The Play 1 (no MCP) instructions generator notebook resolves this automatically.')
 param tableau_datasource_luid string = 'YOUR_DATASOURCE_LUID_GUID'
 
 @description('Name of your Azure Key Vault e.g. my-keyvault')

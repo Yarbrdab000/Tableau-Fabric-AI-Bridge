@@ -106,7 +106,7 @@ At this point your Setup Reference should have:
 - ✅ Key Vault name
 - ✅ Key Vault secret name
 
-Fill in **Logic App name** in the Setup Reference. The **Play 1 — Full deploy sequence** at the bottom of the Setup Reference should now be fully populated. **Do not run it yet** — you need the Datasource LUID from Step 3 first.
+Fill in **Logic App name** in the Setup Reference. The **Play 1 (no MCP) — Full deploy sequence** at the bottom of the Setup Reference should now be fully populated. **Do not run it yet** — you need the Datasource LUID from Step 3 first.
 
 ---
 
@@ -165,7 +165,7 @@ Plays 2, 3, and 4 use managed identity to retrieve the Tableau PAT from Key Vaul
 
 ### 3.7 — Run the Instructions Generator and Get Your Datasource LUID
 
-This notebook resolves your datasource LUID (required for the Play 1 deploy command) and generates your Foundry agent instructions.
+This notebook resolves your datasource LUID (required for the Play 1 (no MCP) deploy command) and generates your Foundry agent instructions.
 
 1. Open `Play1_Agent_Instructions_Generator.ipynb`
 2. Attach a lakehouse (any — it just needs one attached to run)
@@ -185,10 +185,10 @@ The Setup Reference deploy command is now fully populated. ✅
 
 ---
 
-## Step 4 — Deploy Play 1 (Logic App)
+## Step 4 — Deploy Play 1 (no MCP) (Logic App)
 
 1. Open [Azure Cloud Shell](https://portal.azure.com/#cloudshell) in your browser
-2. Upload both Bicep files from the Play 1 folder: `deploy_logicapp.bicep` and `deploy_connection.bicep`
+2. Upload both Bicep files from the Play 1 (no MCP) folder: `deploy_logicapp.bicep` and `deploy_connection.bicep`
    - Click **Manage files** → **Upload** → select both files
 3. Copy the full deploy sequence from the bottom of the Setup Reference and paste it into Cloud Shell
 4. **While the command is sleeping (3 minutes):** go to Azure Portal → **API Connections** → find `keyvault-{your-region}` → **General** → **Edit API connection** → **Authorize** → **Save**
@@ -200,7 +200,7 @@ The Setup Reference deploy command is now fully populated. ✅
 
 ## Step 5 — Configure the OpenAPI Spec and Create the Foundry Agent
 
-1. Open `Play1/openapi_spec.json` from the repo
+1. Open `Play1_no_MCP/openapi_spec.json` from the repo
 2. Replace `YOUR_LOGIC_APP_TRIGGER_URL` with the base URL (everything before the `?`) from Step 4
 3. Replace `YOUR_LOGIC_APP_SIG` with the sig value (everything after `sig=`) from the trigger URL
 4. Go to [ai.azure.com](https://ai.azure.com) → your project → **Agents** → **New agent**
@@ -218,6 +218,6 @@ With setup complete:
 - Run **Play 2** first (Metadata Bridge) — attach `Metadata_Lakehouse` as default lakehouse
 - Run **Play 3** next (VDS Bridge) — attach `h1_ultrastore` as default, `Metadata_Lakehouse` as secondary
 - Run **Play 4** last (Semantic Model Generator) — attach any lakehouse as default
-- **Play 1** (Foundry agent) is ready to use immediately
+- **Play 1 (no MCP)** (Foundry agent) is ready to use immediately
 
 See each play's README for Cell 1 values and known issues.

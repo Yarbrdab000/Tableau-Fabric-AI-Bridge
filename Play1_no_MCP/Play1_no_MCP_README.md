@@ -1,4 +1,4 @@
-# Play 1 — Foundry Agent → Tableau VDS via Logic App
+# Play 1 (no MCP) — Foundry Agent → Tableau VDS via Logic App
 
 > **"Your Tableau data, answered in natural language — no migration required."**
 

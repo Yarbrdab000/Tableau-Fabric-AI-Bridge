@@ -43,10 +43,20 @@ Play 2 builds the manifest. Play 3 lands the data. Play 4 builds the models.
 
 ## Plays
 
-### [Play 1 — Natural Language Queries over Tableau via Azure AI Foundry](Play1/Play1_README.md)
-Connects an Azure AI Foundry agent (GPT-4o) to a live Tableau datasource via the VizQL Data Service API. The agent is exposed via a Logic App that handles Tableau authentication at query time. Business users ask questions in plain English and get answers backed by governed Tableau data — no data movement, no migration required.
+### [Play 1 — Tableau MCP Server on Azure](Play1/Play1_README.md)
+A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes a live Tableau datasource as agent tools (`list_datasources`, `get_datasource_schema`, `query_datasource`). One-click deploys to Azure Container Apps and plugs into Microsoft Copilot Studio, M365 Copilot, or Azure AI Foundry. Business users ask questions in plain English and get answers backed by governed Tableau data — no data movement, no migration required.
 
-**Use case:** Immediate AI value on existing Tableau investments. No Fabric lakehouse required to get started. Works standalone against any published Tableau datasource.
+**Use case:** Immediate AI value on existing Tableau investments, wired into the Microsoft Copilot ecosystem. No Fabric lakehouse required to get started. Works standalone against any published Tableau datasource.
+
+**Input:** Tableau published datasource (live, via VDS API)
+**Output:** MCP endpoint consumable by Copilot Studio / M365 Copilot / Foundry agents
+
+---
+
+### [Play 1 (no MCP) — Foundry Agent via Logic App](Play1_no_MCP/Play1_no_MCP_README.md)
+The same natural-language-over-Tableau outcome without MCP: connects an Azure AI Foundry agent to a live Tableau datasource through a Logic App that handles Tableau authentication at query time. Useful when MCP isn't available in the target environment.
+
+**Use case:** Immediate AI value on existing Tableau investments using a plain Foundry agent + Logic App. No Fabric lakehouse required. Works standalone against any published Tableau datasource.
 
 **Input:** Tableau published datasource (live, via VDS API)
 **Output:** Natural language interface over Tableau data
@@ -76,7 +86,7 @@ Uses Tableau's VizQL Data Service API to pull the actual data from every publish
 ### [Play 4 — Semantic Model Generator](Play4/Play4_README.md)
 Automatically generates and deploys a Power BI semantic model for every Tableau datasource — correct tables, correct columns, correct data types, calculated field stubs, DirectLake connectivity. Deployed directly to the Fabric workspace via REST API. No manual steps.
 
-**Use case:** This is the migration accelerator. A Tableau environment with 500 datasources becomes 500 Fabric semantic models overnight. The customer validates, wires relationships, translates calculated fields — and the migration is done.
+**Use case:** This is the migration accelerator. A Tableau environment with 500 datasources becomes 500 Fabric semantic models overnight — with relationships auto-mapped where Tableau exposes the join keys. The customer validates, reviews any ambiguous relationships, translates calculated fields — and the migration is done.
 
 **Input:** Play 2 metadata + Play 3 Delta tables
 **Output:** Deployed semantic models in Fabric workspace — one per Tableau datasource
@@ -134,7 +144,7 @@ Download [`Setup/setup_reference.html`](Setup/setup_reference.html) and open it 
 4. Enable **"Service principals can use Fabric APIs"** in Fabric Admin Portal
 5. Run Play 2 → Play 3 → Play 4
 
-For the AI-only motion (no data movement): deploy Play 1 standalone — no Fabric lakehouse required.
+For the AI-only motion (no data movement): deploy Play 1 (MCP server) or Play 1 (no MCP) standalone — no Fabric lakehouse required.
 
 ---
 
@@ -169,7 +179,7 @@ Play 2 always runs against the full environment — it's the manifest, not the m
 ## Known Limitations
 
 - **VDS requires Tableau 2025.1+** — older Tableau Server versions are not supported for Plays 3 and 4
-- **Relationships not generated** — Play 4 generates tables and columns; the customer configures relationships based on their data model
+- **Relationships** — Play 4 auto-maps relationships it can infer from Tableau's hidden disambiguated join keys (with many-to-one direction inferred from landed Delta cardinality); ambiguous or unkeyed relationships still need manual review
 - **DAX translation** — calculated fields are stubbed with the original Tableau formula preserved; DAX translation is a manual step
 - **Hidden join key fields** — some hidden fields have different names in VDS vs the Metadata API; Play 3 handles this via retry logic and logs any dropped fields
 - **DirectLake on trial capacity** — may fall back to DirectQuery on small F-SKUs; behaves correctly on production capacity
@@ -185,20 +195,29 @@ Play 2 always runs against the full environment — it's the manifest, not the m
 ├── Setup/
 │   ├── Setup_README.md
 │   └── setup_reference.html        ← open this first
-├── Play1/
+├── Play1/                          ← MCP server (Azure)
 │   ├── Play1_README.md
+│   ├── server.py
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── deploy/
+│   │   ├── azure/                  ← Bicep + one-click ARM template
+│   │   └── copilot-studio/         ← custom connector swagger + guide
+│   └── docs/
+│       └── customer-setup-guide.md
+├── Play1_no_MCP/                   ← Foundry agent + Logic App
+│   ├── Play1_no_MCP_README.md
 │   ├── Play1_Agent_Instructions_Generator.ipynb
-│   ├── agent_instructions.md
 │   ├── openapi_spec.json
-│   ├── template.json
-│   └── main.bicep
+│   ├── deploy_logicapp.bicep
+│   └── deploy_connection.bicep
 ├── Play2/
 │   ├── Play2_README.md
-│   └── Tableau_Metadata_Bridge.ipynb
+│   └── Play2_Tableau_Metadata_Bridge.ipynb
 ├── Play3/
 │   ├── Play3_README.md
-│   └── Tableau_VDS_Bridge_V2.ipynb
+│   └── Play3_Tableau_VDS_Bridge.ipynb
 └── Play4/
     ├── Play4_README.md
-    └── Tableau_Semantic_Model_Generator.ipynb
+    └── Play4_Tableau_Semantic_Model_Generator.ipynb
 ```

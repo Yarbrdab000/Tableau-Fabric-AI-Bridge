@@ -5,9 +5,9 @@
 **/*.pyc
 **/.env
 **/*.env
-mcp-server/docs
+Play1/docs
 Play3
 Play4
-play1
-play2
+Play1_no_MCP
+Play2
 Setup

@@ -166,7 +166,7 @@
         </div>
       </div>
       <div class="field full">
-        <div class="field-label">Logic App trigger URL <span style="font-weight:400;font-style:italic;font-size:10px;">(Play 1, Step 5 — after deployment)</span></div>
+        <div class="field-label">Logic App trigger URL <span style="font-weight:400;font-style:italic;font-size:10px;">(Play 1 (no MCP), Step 5 — after deployment)</span></div>
         <div class="field-row">
           <input class="field-input" id="logic_app_url" placeholder="https://prod-XX.westus3.logic.azure.com:443/workflows/..." oninput="save()" />
           <button class="copy-btn" onclick="copyField('logic_app_url',this)" title="Copy">&#x2398;</button>
@@ -212,7 +212,7 @@
 
   <!-- BICEP DEPLOY COMMAND -->
   <div class="cmd-card">
-    <div class="cmd-label">Play 1 — full deploy sequence <span style="font-weight:400;font-style:italic;text-transform:none;">(auto-built — upload both Bicep files to Cloud Shell first)</span></div>
+    <div class="cmd-label">Play 1 (no MCP) — full deploy sequence <span style="font-weight:400;font-style:italic;text-transform:none;">(auto-built — upload both Bicep files to Cloud Shell first)</span></div>
     <div class="cmd-block" id="cmd-block">
       <button class="cmd-copy" id="cmd-copy-btn" onclick="copyCmd()">Copy</button>
       <span id="cmd-text"></span>

@@ -316,11 +316,21 @@ def query_datasource(
     Best practices: prefer aggregation over row-level data; use a TOP filter for
     "top N" questions; keep results small.
 
+    Superlatives ("highest", "most", "lowest", "largest", "best", "top"): rank the
+    data — do NOT just set row_limit to 1. To get the single highest/lowest, sort the
+    relevant measure (sortDirection DESC for highest / ASC for lowest, sortPriority 1)
+    AND apply a TOP filter (direction TOP for highest / BOTTOM for lowest, howMany 1),
+    then read the first row. Setting row_limit=1 without sorting returns an ARBITRARY
+    row, not the maximum, and will give a wrong answer.
+
     Args:
         datasource: The datasource name or LUID.
         fields: The VDS query fields (non-empty list, see above).
         filters: Optional VDS filters (see above).
-        row_limit: Max rows to return (default 100; capped at the server's limit).
+        row_limit: Max number of rows to return (default 100; capped at the server's
+            limit). This only truncates the result set — it does NOT sort or rank.
+            Never use row_limit=1 to answer "highest/lowest/most" questions; sort the
+            measure and use a TOP filter instead (see Superlatives above).
         disaggregate: Return row-level data instead of aggregates (disabled unless the
             host allows it; use sparingly).
     """

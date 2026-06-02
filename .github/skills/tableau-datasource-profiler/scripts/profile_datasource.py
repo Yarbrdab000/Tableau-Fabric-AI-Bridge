@@ -102,7 +102,22 @@ class TableauError(RuntimeError):
 # reference (rest_api_concepts_auth.htm): header {alg, kid, iss}; claims
 # {aud:"tableau", sub, scp, iss, exp, jti}. Signed with the connected app secret value.
 # --------------------------------------------------------------------------------------
-DEFAULT_JWT_SCOPES = ["tableau:content:read", "tableau:viz_data_service:read"]
+# Tableau Pulse REST scopes (metric definitions/metrics, subscriptions, and the
+# AI-powered insight bundle/brief endpoints).
+PULSE_JWT_SCOPES = [
+    "tableau:insight_definitions_metrics:read",
+    "tableau:insight_metrics:read",
+    "tableau:metric_subscriptions:read",
+    "tableau:insights:read",
+    "tableau:insight_brief:create",
+]
+# Core scopes the datasource tools (REST + Metadata + VDS) need. Kept minimal so they
+# never depend on Pulse being licensed/enabled.
+CORE_JWT_SCOPES = ["tableau:content:read", "tableau:viz_data_service:read"]
+# Attempted by default: core + Pulse, so Pulse works out of the box. connect_from_env
+# falls back to CORE_JWT_SCOPES if a site rejects the Pulse scopes at sign-in, so adding
+# Pulse can never regress the datasource tools.
+DEFAULT_JWT_SCOPES = [*CORE_JWT_SCOPES, *PULSE_JWT_SCOPES]
 JWT_MAX_TTL_SECONDS = 600  # Tableau rejects connected-app JWTs with exp > ~10 minutes.
 
 
@@ -157,6 +172,11 @@ class VDSRateLimit(TableauError):
     pass
 
 
+class PulseUnavailable(TableauError):
+    """Raised when Tableau Pulse (or its AI insights) is not enabled for the site."""
+    pass
+
+
 class TableauClient:
     """Minimal direct-REST Tableau client (Cloud + Server compatible)."""
 
@@ -167,6 +187,9 @@ class TableauClient:
         self.token: Optional[str] = None
         self.site_id: Optional[str] = None
         self.vds_calls = 0
+        # Set False if the site rejected the Pulse scopes at sign-in (Pulse tools then
+        # report a clear "not enabled / scopes unavailable" error instead of failing raw).
+        self.pulse_scopes_granted = True
 
     # -- auth ---------------------------------------------------------------------------
     @property
@@ -356,6 +379,224 @@ class TableauClient:
         if isinstance(payload, dict) and payload.get("error"):
             raise TableauError(f"VDS {path} error: {json.dumps(payload['error'])[:500]}")
         return payload
+
+    # -- tableau pulse ------------------------------------------------------------------
+    @property
+    def _pulse_base(self) -> str:
+        return f"{self.server}/api/-/pulse"
+
+    @staticmethod
+    def _pulse_insights_disabled(headers: Dict[str, str], text: str) -> bool:
+        # These Tableau error codes mean AI-powered Pulse insights are disabled.
+        codes = ("0x62c06627", "0x8c454877")
+        blob = ((headers.get("tableau_error_code") or "") + " " + (text or "")).lower()
+        return any(c in blob for c in codes)
+
+    def _pulse_request(
+        self,
+        method: str,
+        path: str,
+        body: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Call a Tableau Pulse REST endpoint, mapping 'disabled' states to PulseUnavailable."""
+        _require_requests()
+        url = f"{self._pulse_base}{path}"
+        resp = requests.request(
+            method.upper(),
+            url,
+            headers=self._auth_headers(),
+            params=params,
+            data=json.dumps(body) if body is not None else None,
+            timeout=180,
+        )
+        headers = {k.lower(): v for k, v in resp.headers.items()}
+        if resp.status_code == 404:
+            raise PulseUnavailable(
+                "Tableau Pulse is not available on this site (404). It requires Tableau "
+                "Cloud with Pulse enabled."
+            )
+        if resp.status_code == 400 and headers.get("tableau_error_code") == "0xd3408984":
+            raise PulseUnavailable("Tableau Pulse is disabled for this site.")
+        if self._pulse_insights_disabled(headers, resp.text):
+            raise PulseUnavailable(
+                "Tableau Pulse AI insights are disabled for this site. Enable Pulse "
+                "insights (AI features) in Tableau Cloud settings to use this tool."
+            )
+        if resp.status_code == 429:
+            raise VDSRateLimit("Tableau Pulse rate limit hit (429).")
+        if not (200 <= resp.status_code < 300):
+            raise TableauError(
+                f"Pulse {path} failed ({resp.status_code}): {resp.text[:500]}"
+            )
+        try:
+            return resp.json()
+        except ValueError:
+            raise TableauError(f"Pulse {path} returned non-JSON: {resp.text[:500]}")
+
+    def pulse_list_all_definitions(
+        self, view: str = "DEFINITION_VIEW_DEFAULT", page_size: int = 100
+    ) -> List[Dict[str, Any]]:
+        """Return all published Pulse metric definitions (paged), each with its default metric."""
+        out: List[Dict[str, Any]] = []
+        page_token: Optional[str] = None
+        while True:
+            params: Dict[str, Any] = {"view": view, "page_size": str(page_size)}
+            if page_token:
+                params["page_token"] = page_token
+            data = self._pulse_request("GET", "/definitions", params=params)
+            out.extend(data.get("definitions", []) or [])
+            page_token = data.get("next_page_token") or ""
+            if not page_token:
+                break
+        return out
+
+    def pulse_get_definition(
+        self, definition_id: str, view: str = "DEFINITION_VIEW_DEFAULT"
+    ) -> Optional[Dict[str, Any]]:
+        """Return one Pulse metric definition (with its default metric) by definition ID."""
+        data = self._pulse_request(
+            "POST",
+            "/definitions:batchGet",
+            body={"definition_ids": [definition_id]},
+            params={"view": view},
+        )
+        defs = data.get("definitions", []) or []
+        return defs[0] if defs else None
+
+    def pulse_resolve_metric(
+        self, metric: str
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """Resolve a metric name OR definition/metric ID to (definition, default_metric).
+
+        Returns (None, None) if nothing matches. Matching is case-insensitive on the
+        definition name; IDs are matched against the definition id, default metric id.
+        """
+        needle = (metric or "").strip()
+        if not needle:
+            return None, None
+        definitions = self.pulse_list_all_definitions()
+        lowered = needle.lower()
+        for d in definitions:
+            md = d.get("metadata", {}) or {}
+            m = pulse_default_metric(d)
+            metric_id = (m or {}).get("id", "")
+            if (
+                (md.get("name", "").lower() == lowered)
+                or (md.get("id", "") == needle)
+                or (metric_id and metric_id == needle)
+            ):
+                return d, m
+        return None, None
+
+    def pulse_generate_insight_bundle(
+        self, bundle_request: Dict[str, Any], bundle_type: str = "ban"
+    ) -> Dict[str, Any]:
+        """POST a Pulse insight bundle request; bundle_type in ban|springboard|basic|detail."""
+        return self._pulse_request(
+            "POST", f"/insights/{bundle_type}", body=bundle_request
+        )
+
+    def pulse_generate_insight_brief(self, brief_request: Dict[str, Any]) -> Dict[str, Any]:
+        """POST a Pulse insight-brief request (AI conversational answer about metrics)."""
+        return self._pulse_request("POST", "/insights/brief", body=brief_request)
+
+    def pulse_list_subscriptions(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return the current user's Pulse metric subscriptions."""
+        data = self._pulse_request(
+            "GET", "/subscriptions", params={"user_id": user_id}
+        )
+        return data.get("subscriptions", []) or []
+
+
+# --------------------------------------------------------------------------------------
+# Tableau Pulse payload assembly (server-side, so an agent only needs a metric name).
+# The insight bundle/brief endpoints require the full metric definition + specification
+# in the request body; we build those from a fetched definition + its default metric.
+# --------------------------------------------------------------------------------------
+def pulse_default_metric(definition: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Return the default metric embedded in a Pulse definition (view=DEFAULT/FULL)."""
+    metrics = definition.get("metrics", []) or []
+    for m in metrics:
+        if m.get("is_default"):
+            return m
+    return metrics[0] if metrics else None
+
+
+def assemble_pulse_bundle_request(
+    definition: Dict[str, Any],
+    metric: Dict[str, Any],
+    output_format: str = "OUTPUT_FORMAT_HTML",
+    time_zone: str = "UTC",
+    language: str = "LANGUAGE_EN_US",
+    locale: str = "LOCALE_EN_US",
+) -> Dict[str, Any]:
+    """Build the body for POST /pulse/insights/{bundle_type} from a definition + metric."""
+    spec = definition.get("specification", {}) or {}
+    md = definition.get("metadata", {}) or {}
+    metric_input: Dict[str, Any] = {
+        "definition": {
+            "datasource": {"id": (spec.get("datasource", {}) or {}).get("id", "")},
+            "basic_specification": spec.get("basic_specification", {}) or {},
+            "is_running_total": bool(spec.get("is_running_total", False)),
+        },
+        "metric_specification": metric.get("specification", {}) or {},
+        "extension_options": definition.get("extension_options", {}) or {},
+        "representation_options": definition.get("representation_options", {}) or {},
+        "insights_options": definition.get("insights_options", {}) or {},
+    }
+    if metric.get("goals"):
+        metric_input["goals"] = metric["goals"]
+    return {
+        "bundle_request": {
+            "version": 1,
+            "options": {
+                "output_format": output_format,
+                "time_zone": time_zone,
+                "language": language,
+                "locale": locale,
+            },
+            "input": {
+                "metadata": {
+                    "name": md.get("name", ""),
+                    "metric_id": metric.get("id", ""),
+                    "definition_id": md.get("id", ""),
+                },
+                "metric": metric_input,
+            },
+        }
+    }
+
+
+def assemble_pulse_metric_group_context(
+    definition: Dict[str, Any], metric: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Build one metric_group_context entry for a Pulse insight-brief request."""
+    spec = definition.get("specification", {}) or {}
+    md = definition.get("metadata", {}) or {}
+    ctx: Dict[str, Any] = {
+        "metadata": {
+            "name": md.get("name", ""),
+            "metric_id": metric.get("id", ""),
+            "definition_id": md.get("id", ""),
+        },
+        "metric": {
+            "definition": spec,
+            "metric_specification": metric.get("specification", {}) or {},
+            "extension_options": definition.get("extension_options", {}) or {},
+            "representation_options": definition.get("representation_options", {}) or {},
+            "insights_options": definition.get("insights_options", {}) or {},
+            "candidates": [],
+        },
+    }
+    goals: Dict[str, Any] = {}
+    if definition.get("datasource_goals"):
+        goals["datasource_goals"] = definition["datasource_goals"]
+    if metric.get("goals"):
+        goals["metric_goals"] = metric["goals"]
+    if goals:
+        ctx["metric"]["goals"] = goals
+    return ctx
 
 
 # --------------------------------------------------------------------------------------
@@ -810,7 +1051,20 @@ def connect_from_env(
         ] if not v]
         if missing:
             raise TableauError(f"missing required env var(s): {', '.join(missing)}")
-        client.sign_in_jwt(cid, sid, sval, user, _jwt_scopes_from_env())
+        override = _jwt_scopes_from_env()
+        if override is not None:
+            # Operator pinned an explicit scope set; respect it verbatim.
+            client.sign_in_jwt(cid, sid, sval, user, override)
+            client.pulse_scopes_granted = all(s in override for s in PULSE_JWT_SCOPES)
+        else:
+            # Try core + Pulse; if the site rejects the Pulse scopes, fall back to core
+            # so the datasource tools still work (Pulse tools then report unavailable).
+            try:
+                client.sign_in_jwt(cid, sid, sval, user, DEFAULT_JWT_SCOPES)
+                client.pulse_scopes_granted = True
+            except TableauError:
+                client.sign_in_jwt(cid, sid, sval, user, CORE_JWT_SCOPES)
+                client.pulse_scopes_granted = False
     else:
         pat_name = os.environ.get("TABLEAU_PAT_NAME", "")
         pat_value = os.environ.get("TABLEAU_PAT_VALUE", "")

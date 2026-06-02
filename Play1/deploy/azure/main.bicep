@@ -53,6 +53,12 @@ param connectedAppSecretValue string
 @description('Tableau username the SERVICE ACCOUNT acts as. Required by the official server at startup; also the identity used in service_account mode. A Site Admin bypasses RLS.')
 param serviceAccountUsername string
 
+@description('Official server INCLUDE_TOOLS — comma-separated tool or group names to expose. Default trims ~20 tools to the high-signal NL-query set. Empty = all tools.')
+param includeTools string = 'datasource,content-exploration'
+
+@description('Official server MAX_RESULT_LIMITS — per-tool row caps (e.g. "query-datasource:100") to prevent payload blowups. Empty = server defaults.')
+param maxResultLimits string = 'query-datasource:100'
+
 // ---------------------------------------------------------------------------------------
 // Caller auth + identity mode
 // ---------------------------------------------------------------------------------------
@@ -248,7 +254,12 @@ var mcpEnv = concat(
     { name: 'CONNECTED_APP_SECRET_VALUE', secretRef: 'connected-app-secret-value' }
     { name: 'DEFAULT_LOG_LEVEL', value: 'info' }
   ],
-  []
+  empty(includeTools) ? [] : [
+    { name: 'INCLUDE_TOOLS', value: includeTools }
+  ],
+  empty(maxResultLimits) ? [] : [
+    { name: 'MAX_RESULT_LIMITS', value: maxResultLimits }
+  ]
 )
 
 // Sidecar. Public ingress. Owns caller auth + (passthrough) Entra->Tableau identity mapping.

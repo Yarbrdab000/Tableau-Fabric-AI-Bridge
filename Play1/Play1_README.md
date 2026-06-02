@@ -1,20 +1,32 @@
-# Play 1 — Tableau MCP Server (Microsoft AI landing zone)
+# Play 1 — Tableau MCP on Microsoft (official image + auth sidecar)
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server that lets an AI agent
-— **Microsoft Copilot Studio / M365 Copilot**, GitHub Copilot, Claude Desktop, etc. —
-**inventory and query published Tableau datasources in natural language**.
+A **Microsoft landing zone** that one-click-deploys the **official
+[Tableau MCP server](https://github.com/tableau/tableau-mcp)** to Azure and adds the glue a
+Microsoft tenant needs to use it from **Copilot Studio / M365 Copilot / Azure AI Foundry**:
 
-It wraps the repo's live-tested Tableau client (REST + Metadata API + VizQL Data Service)
-as three MCP tools:
+- **`x-api-key` front door** for Copilot Studio custom connectors (the official server speaks
+  OAuth 2.1 by default; the sidecar bridges the simple-header world).
+- **Entra → Tableau identity passthrough** so **Tableau row-level security applies per
+  signed-in M365 user** (the hero capability), with graceful fall-back to a shared service
+  account when you don't need per-user RLS.
+- **Azure-native hygiene:** optional Key Vault + managed identity for secrets, optional Entra
+  "Easy Auth" front door, Log Analytics, scale-to-zero.
 
-| Tool | What it does |
-|------|--------------|
-| `list_datasources` | Lists published datasources on the site (name, LUID, project). |
-| `get_datasource_schema` | Field-level schema — captions, data types, roles, folders, calculated-field formulas — so the agent learns exact field names before querying. |
-| `query_datasource` | Runs a structured VizQL Data Service query (aggregations, filters, sorting, top-N) and returns rows. |
+We **wrap, not fork.** The official image (`ghcr.io/tableau/tableau-mcp`) runs unmodified, so
+you inherit Tableau's ongoing updates and its full, supported tool set (datasources, VizQL
+Data Service queries, workbooks, views, Pulse, content search — ~20 tools).
 
-Read-only: it never modifies Tableau. It keeps one warm sign-in per worker process
-(refreshed on a short TTL or on an auth failure) and signs out on shutdown.
+```mermaid
+flowchart LR
+  U[Business user] -->|natural language| C[Microsoft Copilot]
+  C -->|MCP over HTTPS /mcp<br/>x-api-key or Entra| S[Auth sidecar<br/>public ingress]
+  S -->|localhost + X-Tableau-Auth| M[Official Tableau MCP<br/>internal only]
+  M -->|REST / Metadata / VizQL Data Service / Pulse| T[(Tableau Cloud / Server)]
+  S -. signs per-user Connected App JWT .-> T
+```
+
+Both containers run in **one** Azure Container App. Only the sidecar is exposed; the official
+server listens on localhost, so the sidecar is the complete auth boundary.
 
 ---
 
@@ -22,155 +34,105 @@ Read-only: it never modifies Tableau. It keeps one warm sign-in per worker proce
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FYarbrdab000%2FTableau-Fabric-AI-Bridge%2Fmain%2FPlay1%2Fdeploy%2Fazure%2Fazuredeploy.json)
 
-This deploys the server to **Azure Container Apps** with HTTPS, scale-to-zero (near-zero
-idle cost), and your Tableau credentials stored as secrets. You fill in a short form and
+Deploys to **Azure Container Apps** with HTTPS and scale-to-zero. You fill in a short form and
 click **Create** — no Docker, no command line. Full walkthrough:
 **[docs/customer-setup-guide.md](docs/customer-setup-guide.md)**.
 
-> The button pulls a prebuilt public container image. The **vendor** publishes that image
-> once via the included GitHub Action (`.github/workflows/build-mcp-image.yml`) and makes
-> the GHCR package public. Customers then only ever click the button.
+> The button pulls two public images: the **official** `ghcr.io/tableau/tableau-mcp` and our
+> **sidecar** image. The vendor publishes the sidecar once via
+> `.github/workflows/build-sidecar-image.yml` and makes its GHCR package public. Customers then
+> only ever click the button.
 
 After deployment you get an **MCP endpoint** like
-`https://tableau-mcp.<region>.azurecontainerapps.io/mcp` to register in Copilot Studio.
+`https://tableau-mcp.<region>.azurecontainerapps.io/mcp` to register in Copilot Studio (see
+[deploy/copilot-studio/](deploy/copilot-studio/)).
 
 ---
 
-## Run locally (for development / evaluation)
+## Identity modes
 
-No hosting required — great for trying it in GitHub Copilot, VS Code, or Claude Desktop.
+| `identityMode`     | What each agent user sees | Per-user RLS | Requirements |
+|--------------------|---------------------------|--------------|--------------|
+| `service_account` (default) | Everything the one configured Tableau account can see | No | Works in any tenant; no Entra wiring needed |
+| `passthrough`      | Only the rows *their own* Tableau user is allowed | **Yes** | Easy Auth (or APIM) in front + UPN→Tableau mapping |
 
-```bash
-cd Play1
-python -m pip install -r requirements.txt
-cp .env.example .env        # then edit: set TABLEAU_AUTH=pat and your TABLEAU_PAT_* values
+`passthrough` maps the caller's Entra UPN to a Tableau username, signs a Connected App
+(Direct Trust) JWT as that user, and injects `X-Tableau-Auth` into the official server. If a
+caller can't be mapped, the request is **denied** (fail-closed) — it never silently falls back
+to the privileged service account. See the sidecar's
+[README](sidecar/README.md) and [docs/customer-setup-guide.md](docs/customer-setup-guide.md).
 
-# stdio transport (default) — point your MCP client at: python Play1/server.py
-MCP_TRANSPORT=stdio python server.py
-```
+---
 
-Example MCP client config (GitHub Copilot / VS Code / Claude Desktop):
+## Run locally (development / evaluation)
 
-```json
-{
-  "mcpServers": {
-    "tableau": {
-      "command": "python",
-      "args": ["C:/path/to/Play1/server.py"],
-      "env": {
-        "TABLEAU_SERVER": "https://10ay.online.tableau.com",
-        "TABLEAU_SITE": "your-site",
-        "TABLEAU_AUTH": "pat",
-        "TABLEAU_PAT_NAME": "your-pat-name",
-        "TABLEAU_PAT_VALUE": "your-pat-secret"
-      }
-    }
-  }
-}
-```
-
-To test the **HTTP** transport locally:
+A docker-compose harness runs the **real** official image behind the sidecar:
 
 ```bash
-MCP_TRANSPORT=http PORT=8000 MCP_API_KEY=dev-secret python server.py
-# health: GET http://localhost:8000/healthz
-# MCP:    POST http://localhost:8000/mcp   (Authorization: Bearer dev-secret)
+cd Play1/deploy/local
+cp .env.example .env          # fill in your Tableau Connected App values
+docker compose up --build
+curl -s localhost:9000/healthz
+# MCP over HTTP at  http://localhost:9000/mcp   (header  x-api-key: $SIDECAR_API_KEY)
+```
+
+Sidecar unit/integration tests (no Docker needed):
+
+```bash
+cd Play1/sidecar
+python -m venv .venv && . .venv/Scripts/activate    # or bin/activate on *nix
+pip install -r requirements.txt pytest
+python -m pytest tests -q
 ```
 
 ---
 
-## Configuration (environment variables)
+## Key deployment parameters
 
-| Variable | Purpose |
-|----------|---------|
-| `MCP_TRANSPORT` | `stdio` (local) or `http` (hosted). |
-| `PORT` | HTTP listen port (default 8000). |
-| `MCP_API_KEY` | If set (http), callers must send `Authorization: Bearer <key>` or `x-api-key`. |
-| `TABLEAU_SERVER` | Tableau pod/server URL, e.g. `https://10ay.online.tableau.com`. |
-| `TABLEAU_SITE` | Site content URL (slug). Empty = Default site. |
-| `TABLEAU_AUTH` | `jwt` (Connected App, recommended for hosting) or `pat`. |
-| `TABLEAU_CONNECTED_APP_CLIENT_ID` / `_SECRET_ID` / `_SECRET_VALUE` | Connected App (Direct Trust) credentials. |
-| `TABLEAU_JWT_USERNAME` | Tableau user the server acts as (service account — see Security). |
-| `TABLEAU_PAT_NAME` / `TABLEAU_PAT_VALUE` | Personal Access Token (for `TABLEAU_AUTH=pat`). |
-| `MCP_MAX_ROW_LIMIT` | Server-side cap on rows per query (default 1000). Requests above this, or `row_limit<=0`, are clamped. |
-| `MCP_ALLOW_DISAGGREGATE` | `true` to permit row-level (disaggregated) extraction. Default `false` (aggregates only). |
-| `TABLEAU_SESSION_TTL` | Seconds to reuse a Tableau sign-in before refreshing (default 540). |
+Full list + descriptions are in [`deploy/azure/main.bicep`](deploy/azure/main.bicep).
+
+| Parameter | Purpose |
+|-----------|---------|
+| `tableauServer` / `tableauSite` | Tableau pod URL + site content URL. |
+| `connectedAppClientId` / `connectedAppSecretId` / `connectedAppSecretValue` | Tableau Connected App (Direct Trust). |
+| `serviceAccountUsername` | Tableau user the service account acts as (required by the official server at startup; the identity used in `service_account` mode). |
+| `allowApiKey` / `sidecarApiKey` | Enable + set the shared `x-api-key` for Copilot Studio. |
+| `identityMode` | `service_account` (default) or `passthrough`. |
+| `upnMappingMode` (+ `upnDomainFrom`/`upnDomainTo`) | How Entra UPNs map to Tableau usernames (`direct` / `transform` / `explicit`). |
+| `enableEasyAuth` (+ `entraClientId`, `entraTenantId`) | Turn on the Microsoft Entra front door. |
+| `useKeyVault` | Store secrets in Key Vault via managed identity instead of plain Container App secrets. |
+| `includeTools` / `maxResultLimits` | Tool curation (default `datasource,content-exploration` + `query-datasource:100`). |
+| `tableauMcpImage` / `sidecarImage` | Pinned image references (pin the official image by digest for production). |
 
 ---
 
 ## Security
 
-- **Transport:** HTTPS only when hosted (Container Apps enforces TLS).
-- **API key (required for the one-click deploy):** set `MCP_API_KEY` so only your Copilot
-  connector can call the endpoint. In Copilot Studio, use the **`x-api-key` header** with
-  the key value (or `Authorization: Bearer <key>`).
-- **Service-account access model:** the server queries Tableau as the single
-  `TABLEAU_JWT_USERNAME` you configure — it does **not** map individual Copilot users to
-  Tableau identities. Results reflect that one account's permissions and row-level
-  security. **Use a least-privilege Tableau user/group** scoped to only the datasources
-  this agent should expose. A Site Admin (which bypasses RLS) is fine for a demo but is a
-  poor production default. For different audiences, deploy separate instances with
-  different service accounts.
-- **Result guardrails:** `MCP_MAX_ROW_LIMIT` caps response size and `disaggregate` is
-  disabled unless `MCP_ALLOW_DISAGGREGATE=true`, reducing data-exfiltration/timeout risk.
-- **Microsoft Entra (recommended for production):** enable
-  [built-in authentication](https://learn.microsoft.com/azure/container-apps/authentication)
-  on the Container App to require Entra sign-in in front of the API key. See the setup guide.
-- **Least privilege:** scope the Tableau Connected App to `tableau:content:read` and
-  `tableau:viz_data_service:read` only.
-
-### Row-level security (RLS) & per-user identity passthrough
-
-**This repo ships with a single service-account model** — every Copilot user's question is
-answered as the one `TABLEAU_JWT_USERNAME` you configure, so Tableau row-level security is
-**not** applied per end user (and is bypassed entirely if that account is a Site/Server
-Admin). This is intentional for a simple, low-friction v1.
-
-To make the deployment **respect RLS per end user**, the server must impersonate the calling
-user by setting the Connected App JWT `sub` to *their* Tableau username (the
-`build_connected_app_jwt(..., username=...)` primitive already supports this). For that to
-work end-to-end, the following must be in place:
-
-**Tableau configuration**
-- **Define RLS on the datasource(s).** Use user filters / data-source filters with
-  `USERNAME()` / `USERMEMBEROF()`, or Tableau's centralized row-level security with
-  entitlement tables. Identity alone restricts nothing if no RLS policy exists.
-- **Provision the end users onto the Tableau site**, ideally via **SCIM** from your identity
-  provider (e.g. Microsoft Entra). SCIM keeps the user set in sync and — crucially — keeps
-  Tableau usernames aligned with the Entra identity (UPN/email), so `sub = <Entra UPN>`
-  matches a real Tableau user with no hand-maintained mapping table.
-- **Configure the Connected App for impersonation** and ensure impersonated users are
-  licensed. The impersonated user must **not** be a Site/Server Admin (admins see all rows).
-- Keep SSO/identity settings consistent so the Tableau username equals the identity asserted
-  by your IdP (SCIM handles this when configured).
-
-**Platform / server configuration (not included in this repo's v1)**
-- **Identity passthrough** from Copilot Studio / Azure AI Foundry: configure the MCP tool's
-  auth so the signed-in user's **Entra token** is forwarded to the server (OAuth
-  on-behalf-of), instead of (or in addition to) the shared `x-api-key`.
-- **Token validation on the server:** validate the incoming Entra JWT (signature via JWKS,
-  audience, issuer, expiry), extract the `upn`/`email`, and use it as the Tableau `sub` —
-  **never** accept the username as a tool argument (spoofable).
-- **Per-user sessions:** cache Tableau sign-ins keyed by user (mind VDS per-user rate limits),
-  and **fail closed** — reject requests without a verified identity rather than falling back
-  to the service account.
-
-**Summary:** with **SCIM (Entra↔Tableau) + identity passthrough + RLS defined on the
-datasource**, the solution enforces row-level security per user. Without those, it operates
-as a shared service account and all users see the same data.
+- **Caller auth:** `x-api-key` (treat as a secret; rotate via the `sidecar-api-key` secret) and/or
+  **Microsoft Entra Easy Auth**. With api-key enabled, Easy Auth runs in `AllowAnonymous` so the
+  sidecar enforces the key; without it, Easy Auth returns 401 at the platform edge.
+- **No public official server:** ingress targets only the sidecar; the official container is
+  unreachable from the internet (`DANGEROUSLY_DISABLE_OAUTH=true` is therefore safe).
+- **Header spoofing:** the sidecar strips all client-supplied identity headers
+  (`X-Tableau-Auth`, `X-MS-CLIENT-PRINCIPAL*`, …) before adding its own; it trusts Easy Auth's
+  principal header only when `TRUST_EASY_AUTH` is on.
+- **Per-user RLS (passthrough):** fail-closed on unresolved identity; per-user Tableau session
+  tokens are cached in memory only, keyed by the full identity tuple, and never logged.
+- **Secrets:** plain Container App secrets by default; opt into Key Vault + managed identity
+  with `useKeyVault=true`.
+- **Least privilege:** scope the Connected App to `tableau:content:read`,
+  `tableau:viz_data_service:read` (+ `tableau:insights:read` if you expose Pulse). In
+  `service_account` mode, use a least-privilege Tableau user — a Site Admin bypasses RLS.
 
 ---
 
-## Architecture
+## What's here
 
-```mermaid
-flowchart LR
-  U[Business user] -->|natural language| C[Microsoft Copilot]
-  C -->|MCP over HTTPS /mcp| M[MCP server on Azure Container Apps]
-  M -->|REST / Metadata / VizQL Data Service| T[(Tableau Cloud)]
-  M -. Connected App JWT .-> T
-```
-
-The same `server.py` runs locally over stdio for development and over Streamable HTTP when
-hosted, reusing the identical, live-tested Tableau client in
-`.github/skills/tableau-datasource-profiler/scripts/`.
+| Path | Purpose |
+|------|---------|
+| `deploy/azure/` | Bicep landing zone (`main.bicep`), compiled `azuredeploy.json`, params, `deploy.ps1`. |
+| `deploy/local/` | docker-compose harness (official image + sidecar) for local runs. |
+| `deploy/copilot-studio/` | Custom-connector swagger + wiring guide for Copilot Studio. |
+| `sidecar/` | The auth sidecar (Starlette reverse proxy) + tests + Dockerfile. |
+| `docs/customer-setup-guide.md` | End-to-end customer walkthrough. |
+| `archive/` | The retired custom Python MCP fork (`server.py`), kept for reference only. |

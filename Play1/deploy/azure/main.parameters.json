@@ -11,6 +11,8 @@
     "connectedAppSecretId": { "value": "" },
     "connectedAppSecretValue": { "value": "" },
     "serviceAccountUsername": { "value": "svc-mcp@yourcompany.com" },
+    "includeTools": { "value": "datasource,content-exploration" },
+    "maxResultLimits": { "value": "query-datasource:100" },
     "allowApiKey": { "value": true },
     "sidecarApiKey": { "value": "REPLACE-WITH-A-LONG-RANDOM-STRING" },
     "identityMode": { "value": "service_account" },

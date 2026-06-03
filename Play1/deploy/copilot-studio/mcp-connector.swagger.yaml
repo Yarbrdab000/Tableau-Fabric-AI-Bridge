@@ -3,12 +3,14 @@ info:
   title: Tableau Fabric AI Bridge (MCP)
   description: >-
     Model Context Protocol server that lets a Microsoft Copilot Studio agent
-    inventory and query published Tableau datasources in natural language
-    (list_datasources, get_datasource_schema, query_datasource).
+    inventory and query published Tableau datasources in natural language. Backed
+    by the official Tableau MCP server (tools: list-datasources,
+    get-datasource-metadata, query-datasource, search-content) behind an auth
+    sidecar that accepts a shared x-api-key.
   version: '1.0.0'
 # Replace `host` with YOUR deployed Container App FQDN (the mcpEndpoint output of the
 # Deploy-to-Azure step, without the https:// prefix and without the /mcp suffix).
-host: tableau-mcp.graysea-5a3f72c8.westus3.azurecontainerapps.io
+host: REPLACE-WITH-YOUR-APP.region.azurecontainerapps.io
 basePath: /
 schemes:
   - https

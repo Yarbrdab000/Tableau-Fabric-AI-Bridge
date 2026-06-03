@@ -1,22 +1,21 @@
-name: Build and publish MCP server image
+name: Build and publish auth sidecar image
 
-# Publishes the Tableau-Fabric-AI-Bridge MCP server container to GitHub Container
-# Registry (GHCR). Runs entirely on GitHub-hosted runners — no local Docker needed.
-# After the first successful run, make the package public once
-# (repo > Packages > tableau-fabric-ai-bridge-mcp > Package settings > Change visibility)
-# so the "Deploy to Azure" button can pull it without registry credentials.
+# Publishes the Play 1 auth sidecar container (front door for the OFFICIAL Tableau MCP
+# image) to GitHub Container Registry (GHCR). Runs on GitHub-hosted runners — no local
+# Docker needed. After the first successful run, make the package public once
+# (repo > Packages > tableau-fabric-ai-bridge-sidecar > Package settings > Change
+# visibility) so the "Deploy to Azure" button can pull it without registry credentials.
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'Play1/**'
-      - '.github/skills/tableau-datasource-profiler/scripts/**'
-      - '.github/workflows/build-mcp-image.yml'
+      - 'Play1/sidecar/**'
+      - '.github/workflows/build-sidecar-image.yml'
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/tableau-fabric-ai-bridge-mcp
+  IMAGE: ghcr.io/${{ github.repository_owner }}/tableau-fabric-ai-bridge-sidecar
 
 jobs:
   build-and-push:
@@ -42,8 +41,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Play1/Dockerfile
+          context: Play1/sidecar
+          file: Play1/sidecar/Dockerfile
           push: true
           tags: |
             ${{ steps.img.outputs.image }}:latest

@@ -102,6 +102,38 @@ def main() -> int:
     check(G.WORKSPACE_PLACEHOLDER in cs, "connectionString must contain the workspace placeholder")
     check(f"Initial Catalog={G.REPORT_NAME}" in cs, "connectionString must target the model")
 
+    # 4b. Every part carries the $schema Power BI Desktop now requires, and the
+    #     .pbip property file matches Desktop's required pattern exactly. (A wrong
+    #     or missing $schema makes Desktop refuse to open the project.)
+    import re as _re
+    pbip_pattern = _re.compile(
+        r"^https://developer\.microsoft\.com/json-schemas/fabric/pbip/"
+        r"pbipProperties/1\.[0-9]+\.[0-9]+/schema\.json$"
+    )
+    pbip_obj = files[f"{G.REPORT_NAME}.pbip"]
+    check(
+        bool(pbip_pattern.match(pbip_obj.get("$schema", ""))),
+        f".pbip $schema must match Desktop's pattern, got {pbip_obj.get('$schema')!r}",
+    )
+    expected_schema = {
+        f"{report_root}/.platform": G.SCHEMA["platform"],
+        f"{report_root}/definition.pbir": G.SCHEMA["pbir"],
+        f"{report_root}/definition/report.json": G.SCHEMA["report"],
+        f"{report_root}/definition/version.json": G.SCHEMA["version"],
+        f"{report_root}/definition/pages/pages.json": G.SCHEMA["pages"],
+    }
+    for path, want in expected_schema.items():
+        check(files[path].get("$schema") == want, f"{path}: wrong/missing $schema")
+    for path, obj in files.items():
+        if path.endswith("/page.json"):
+            check(obj.get("$schema") == G.SCHEMA["page"], f"{path}: wrong page $schema")
+        elif path.endswith("/visual.json"):
+            check(obj.get("$schema") == G.SCHEMA["visual"], f"{path}: wrong visual $schema")
+    # Every PBIR part must declare a $schema (Desktop validates all of them).
+    for path, obj in files.items():
+        if path.endswith(".json") or path.endswith(".pbir") or path.endswith(".platform") or path.endswith(".pbip"):
+            check("$schema" in obj, f"{path}: missing $schema")
+
     # 5. pages.json wiring matches the page folders on disk-in-memory.
     page_files = [p for p in files if p.endswith("/page.json")]
     page_ids_on_tree = {p.split("/")[3] for p in page_files}

@@ -79,6 +79,9 @@ A semantic model named **`Tableau Migration Assessment`** containing:
   `mig_*` tables
 - **Project / Owner** — shared dimensions (single slicer cross-filters datasources +
   workbooks)
+- **Real date fields** — `Datasources[extract_last_refresh]` and `Workbooks[updated_at]`
+  land as true `dateTime` columns (not text), so the report can use date-range slicers and
+  time hierarchies alongside the pre-computed `days_since_*` signals
 - **`_Metrics`** — the migration-KPI measures:
 
 | KPI | Meaning |
@@ -123,6 +126,12 @@ in ~5 minutes against the live model. See [`dashboard/README.md`](./dashboard/RE
 - **Schema contract assertion.** The notebook fails fast if any derived Delta column
   doesn't land as the expected physical type — the same class of DirectLake binding bug
   Play 4 hardened against.
+- **Pretuned column types (incl. dates).** Because this model's schema is fixed and
+  authored by hand (`ESTATE_TABLES`), every column's `dataType` is declared, not inferred.
+  Date columns (`extract_last_refresh`, `updated_at`) are written as Spark `TimestampType`
+  and emitted as TMDL `dateTime` (Short Date) — so unlike a dynamic model they can never
+  land as text. (Play 4, which mirrors the *physical* Delta schema, gets the same
+  correctness from the Play 3 column-typing fix.)
 
 ---
 

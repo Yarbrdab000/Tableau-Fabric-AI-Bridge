@@ -122,9 +122,17 @@
           "title": "Stale Extract Datasources",
           "columns": [
             "Datasources[name]",
+            "Datasources[extract_last_refresh]",
             "Datasources[days_since_refresh]",
             "Datasources[owner_name]"
           ]
+        },
+        {
+          "type": "line",
+          "title": "Workbook Update Recency",
+          "axis": "Workbooks[updated_at]",
+          "value": "Workbooks",
+          "note": "Real dateTime field — supports a date-range slicer and time hierarchy."
         }
       ]
     }

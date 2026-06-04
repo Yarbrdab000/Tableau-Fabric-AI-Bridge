@@ -39,13 +39,13 @@ WORKSPACE_PLACEHOLDER = "REPLACE_WITH_YOUR_FABRIC_WORKSPACE_NAME"
 # ── PBIR schema URLs (pinned to the versions of the fixtures we grounded against) ──
 SCHEMA = {
     "pbir":    "https://developer.microsoft.com/json-schemas/fabric/item/report/definitionProperties/1.0.0/schema.json",
-    "report":  "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/1.2.0/schema.json",
+    "report":  "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/1.1.0/schema.json",
     "version": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/versionMetadata/1.0.0/schema.json",
     "pages":   "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/pagesMetadata/1.0.0/schema.json",
-    "page":    "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/1.3.0/schema.json",
-    "visual":  "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+    "page":    "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/1.1.0/schema.json",
+    "visual":  "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.1.0/schema.json",
     "platform": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
-    "pbip":    "https://developer.microsoft.com/json-schemas/fabric/item/pbip/1.0.0/schema.json",
+    "pbip":    "https://developer.microsoft.com/json-schemas/fabric/pbip/pbipProperties/1.0.0/schema.json",
 }
 
 # ── Model contract (mirror of play5_assess.py ESTATE_TABLES / ESTATE_MEASURES) ─────
@@ -301,6 +301,7 @@ def build_definition_pbir() -> dict:
         f"Initial Catalog={REPORT_NAME};"
     )
     return {
+        "$schema": SCHEMA["pbir"],
         "version": "4.0",
         "datasetReference": {
             "byPath": None,

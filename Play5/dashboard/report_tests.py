@@ -90,6 +90,12 @@ def main() -> int:
     plat = files[f"{report_root}/.platform"]
     check(plat["metadata"]["type"] == "Report", ".platform type must be 'Report'")
     check(plat["metadata"]["displayName"] == G.REPORT_NAME, ".platform displayName wrong")
+    import uuid as _uuid
+    try:
+        _uuid.UUID(plat["config"]["logicalId"])
+        check(True, "")
+    except (ValueError, KeyError, TypeError):
+        check(False, f".platform config.logicalId must be a GUID, got {plat.get('config', {}).get('logicalId')!r}")
 
     # 4. Binding: byConnection to the deterministic model, with a replaceable workspace.
     pbir = files[f"{report_root}/definition.pbir"]

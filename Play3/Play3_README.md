@@ -72,6 +72,14 @@ h1_ultrastore
 
 **Naming convention:** `{datasource_name}_{upstream_table}` — slugified (lowercase, spaces/special chars → underscores).
 
+> **This lakehouse is accelerator-or-final.** For smaller estates it can simply *be* the
+> destination. For larger ones it's a bootstrap: because Play 3 lands **one Delta table per
+> upstream physical table** and Play 4's models bind by table *name + schema*, you can later
+> rebind any table to its real native source (OneLake Shortcut / Mirroring / pipeline / ETL)
+> without touching the semantic model — as long as the table keeps the same name and column/type
+> contract. Performing that native cutover is a separate, source-specific step; this toolkit gets
+> you running first.
+
 ---
 
 ## Rate Limiting

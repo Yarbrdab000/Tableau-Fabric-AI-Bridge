@@ -41,6 +41,19 @@ Play 2 builds the manifest. Play 3 lands the data. Play 4 builds the models.
 
 ---
 
+## What This Is — and Isn't
+
+This is a **migration accelerator, not a one-click "migrate my entire Tableau deployment" button.** It gets your Tableau data and semantic layer into Fabric *fast*, with two honest end-states depending on scale:
+
+- **Smaller estates** — the generated `h1_ultrastore` lakehouse can simply *be* the destination. Land the data, deploy the models, done.
+- **Larger estates** — treat it as a **working bootstrap**. You get usable data and semantic models in Fabric on day one; then, over time, you rebind each table to its real native source. At enterprise scale (hundreds of datasources spanning many source systems with different security postures), those tables won't all live in one generated lakehouse — some become **OneLake Shortcuts**, some **Mirroring**, some **Data Factory / notebook ETL**, each governed on its own terms. That's expected, and it's fine.
+
+**Why the staged path is safe:** the semantic model is **decoupled from how the data is loaded**. Play 4's DirectLake models bind to Delta tables by *name and schema* — so you can swap what *populates* a table (VDS pull → Shortcut / Mirror / pipeline) without disturbing the model's measures, relationships, or column types, as long as the table keeps the same name and column/type contract. Play 3 deliberately lands **one Delta table per upstream physical table**, so that eventual rebind is table-to-table, not a reshape.
+
+In short: the toolkit does the expensive part — reconstructing the semantic layer and getting governed data flowing on day one — and hands off cleanly to whatever native ingestion each source ultimately needs.
+
+---
+
 ## Plays
 
 ### [Play 1 — Tableau MCP Server on Azure](Play1/Play1_README.md)
@@ -184,6 +197,7 @@ Play 2 always runs against the full environment — it's the manifest, not the m
 - **Hidden join key fields** — some hidden fields have different names in VDS vs the Metadata API; Play 3 handles this via retry logic and logs any dropped fields
 - **DirectLake on trial capacity** — may fall back to DirectQuery on small F-SKUs; behaves correctly on production capacity
 - **Row Level Security (RLS)** — VDS respects Tableau RLS. Data landed in the Lakehouse reflects only what the PAT user is permitted to see. For complete data, use a Site Admin PAT or disable RLS on the datasource before running. Migrating RLS rules to Fabric row-level security is a separate post-migration step.
+- **Native-source rebind is a separate, manual step** — Plays 3–4 feed the models from a VDS-landed snapshot in the generated lakehouse. Cutting each datasource over to its live native source (OneLake Shortcut / Mirroring / Data Factory / notebook ETL) is customer- and source-specific — security, networking, and scheduling differ per system — and is intentionally **not** automated here. Because the models bind by table name + schema, they keep working through the cutover as long as each table's name and column/type contract is preserved. See [What This Is — and Isn't](#what-this-is--and-isnt).
 
 ---
 

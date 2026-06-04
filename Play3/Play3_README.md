@@ -107,6 +107,24 @@ Dropped fields are logged in the verification output. In practice this only affe
 
 ---
 
+## Column Typing (dates land as dates, not text)
+
+VDS `query-datasource` (OBJECTS format) returns **DATE, DATETIME, and BOOLEAN values as strings**. If those columns are written to Delta as-is, Spark infers them as `string`, and Play 4 — which maps the *physical* Delta type — would surface, say, `order_date` as a text field (breaking date hierarchies, time intelligence, and DirectLake date binding).
+
+Play 3 fixes this at the source: before writing each table it casts every landed column to its Tableau `dataType`, taken from VDS `read-metadata` for payload fields and from the Metadata API (`tableau_fields.data_type`) for hidden keys.
+
+| Tableau `dataType` | Cast | Lands in Delta as | Play 4 emits |
+| --- | --- | --- | --- |
+| `DATE` / `DATETIME` | `to_datetime` | `timestamp` | `dateTime` |
+| `INTEGER` | numeric | `bigint` (or `double` if nulls) | `int64` |
+| `REAL` | numeric | `double` | `double` |
+| `BOOLEAN` | true/false map | `boolean` | `boolean` |
+| `STRING` / other | unchanged | `string` | `string` |
+
+Unparseable values become null (`NaT`/`NaN`) rather than failing the whole table. Re-run Play 3 then Play 4 to retype any tables that were landed before this fix (`overwriteSchema` re-lands them).
+
+---
+
 ## Known Limitations
 
 **Hidden join key fields** — some hidden fields that VDS `read-metadata` doesn't advertise are still queryable via VDS when passed directly. Play 3 handles this via the retry logic. Fields that genuinely can't be queried are dropped and logged.

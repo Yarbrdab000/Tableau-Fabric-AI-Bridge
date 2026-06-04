@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+  "name": "4938b09edfdf9c3a1603",
+  "position": {
+    "x": 1014,
+    "y": 88,
+    "z": 8000,
+    "height": 92,
+    "width": 184,
+    "tabOrder": 8000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Metrics"
+                    }
+                  },
+                  "Property": "Reused Data Sources"
+                }
+              },
+              "queryRef": "_Metrics.Reused Data Sources",
+              "nativeQueryRef": "Reused Data Sources"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

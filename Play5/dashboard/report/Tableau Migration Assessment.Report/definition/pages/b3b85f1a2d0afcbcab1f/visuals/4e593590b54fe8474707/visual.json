@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+  "name": "4e593590b54fe8474707",
+  "position": {
+    "x": 1014,
+    "y": 88,
+    "z": 8000,
+    "height": 92,
+    "width": 184,
+    "tabOrder": 8000
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Metrics"
+                    }
+                  },
+                  "Property": "Avg Extract Age (days)"
+                }
+              },
+              "queryRef": "_Metrics.Avg Extract Age (days)",
+              "nativeQueryRef": "Avg Extract Age (days)"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

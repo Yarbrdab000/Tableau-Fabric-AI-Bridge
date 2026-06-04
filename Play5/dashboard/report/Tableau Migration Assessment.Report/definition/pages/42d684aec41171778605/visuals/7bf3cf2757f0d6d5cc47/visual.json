@@ -1,0 +1,99 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+  "name": "7bf3cf2757f0d6d5cc47",
+  "position": {
+    "x": 644,
+    "y": 218,
+    "z": 8000,
+    "height": 232,
+    "width": 596,
+    "tabOrder": 8000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Datasources"
+                    }
+                  },
+                  "Property": "name"
+                }
+              },
+              "queryRef": "Datasources.name",
+              "nativeQueryRef": "name"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Datasources"
+                    }
+                  },
+                  "Property": "project_name"
+                }
+              },
+              "queryRef": "Datasources.project_name",
+              "nativeQueryRef": "project_name"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Connections"
+                    }
+                  },
+                  "Property": "connection_type"
+                }
+              },
+              "queryRef": "Connections.connection_type",
+              "nativeQueryRef": "connection_type"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Datasources"
+                    }
+                  },
+                  "Property": "is_reused"
+                }
+              },
+              "queryRef": "Datasources.is_reused",
+              "nativeQueryRef": "is_reused"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "43166c0b60339ea1bd24",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Connections"
+              }
+            },
+            "Property": "is_flat_file"
+          }
+        },
+        "type": "Categorical",
+        "howCreated": "User"
+      }
+    ]
+  }
+}

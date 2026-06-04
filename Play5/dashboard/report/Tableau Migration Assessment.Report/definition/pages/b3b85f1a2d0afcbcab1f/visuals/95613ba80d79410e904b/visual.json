@@ -1,0 +1,75 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+  "name": "95613ba80d79410e904b",
+  "position": {
+    "x": 24,
+    "y": 474,
+    "z": 11000,
+    "height": 232,
+    "width": 596,
+    "tabOrder": 11000
+  },
+  "visual": {
+    "visualType": "lineChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Workbooks"
+                    }
+                  },
+                  "Property": "updated_at"
+                }
+              },
+              "queryRef": "Workbooks.updated_at",
+              "nativeQueryRef": "updated_at",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Metrics"
+                    }
+                  },
+                  "Property": "Workbooks"
+                }
+              },
+              "queryRef": "_Metrics.Workbooks",
+              "nativeQueryRef": "Workbooks"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "Workbooks"
+                  }
+                },
+                "Property": "updated_at"
+              }
+            },
+            "direction": "Ascending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

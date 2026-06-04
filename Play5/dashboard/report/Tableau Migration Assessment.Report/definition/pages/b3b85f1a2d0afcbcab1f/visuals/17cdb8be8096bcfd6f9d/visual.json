@@ -1,0 +1,99 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+  "name": "17cdb8be8096bcfd6f9d",
+  "position": {
+    "x": 644,
+    "y": 218,
+    "z": 10000,
+    "height": 232,
+    "width": 596,
+    "tabOrder": 10000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Datasources"
+                    }
+                  },
+                  "Property": "name"
+                }
+              },
+              "queryRef": "Datasources.name",
+              "nativeQueryRef": "name"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Datasources"
+                    }
+                  },
+                  "Property": "extract_last_refresh"
+                }
+              },
+              "queryRef": "Datasources.extract_last_refresh",
+              "nativeQueryRef": "extract_last_refresh"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Datasources"
+                    }
+                  },
+                  "Property": "days_since_refresh"
+                }
+              },
+              "queryRef": "Datasources.days_since_refresh",
+              "nativeQueryRef": "days_since_refresh"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Datasources"
+                    }
+                  },
+                  "Property": "owner_name"
+                }
+              },
+              "queryRef": "Datasources.owner_name",
+              "nativeQueryRef": "owner_name"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "e6335d2b3bc594808b41",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Datasources"
+              }
+            },
+            "Property": "is_refresh_stale"
+          }
+        },
+        "type": "Categorical",
+        "howCreated": "User"
+      }
+    ]
+  }
+}

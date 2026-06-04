@@ -25,6 +25,7 @@ import hashlib
 import json
 import os
 import shutil
+import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CATALOG_PATH = os.path.join(HERE, "kpi_catalog.json")
@@ -91,6 +92,12 @@ def _id(*parts: str) -> str:
     """Deterministic 20-hex visual/page id from a name (stable across regenerations)."""
     h = hashlib.md5("::".join(parts).encode("utf-8")).hexdigest()
     return h[:20]
+
+
+def _guid(*parts: str) -> str:
+    """Deterministic RFC-4122 GUID from a name (Power BI requires a real GUID for
+    .platform config.logicalId, not a bare hex string)."""
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, "::".join(parts)))
 
 
 def _parse_ref(ref: str):
@@ -321,7 +328,7 @@ def build_platform() -> dict:
     return {
         "$schema": SCHEMA["platform"],
         "metadata": {"type": "Report", "displayName": REPORT_NAME},
-        "config": {"version": "2.0", "logicalId": _id("logical", REPORT_NAME)},
+        "config": {"version": "2.0", "logicalId": _guid("logical", REPORT_NAME)},
     }
 
 

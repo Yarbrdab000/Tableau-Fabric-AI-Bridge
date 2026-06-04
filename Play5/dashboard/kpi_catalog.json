@@ -1,0 +1,296 @@
+{
+  "model": "Tableau Migration Assessment",
+  "measuresTable": "_Metrics",
+  "slicers": [
+    {
+      "table": "Project",
+      "column": "project_name",
+      "note": "Shared dim — cross-filters BOTH Datasources and Workbooks."
+    },
+    {
+      "table": "Owner",
+      "column": "owner_name",
+      "note": "Shared dim — cross-filters BOTH Datasources and Workbooks."
+    }
+  ],
+  "pages": [
+    {
+      "name": "Overview",
+      "purpose": "Estate size + migration-scope headline KPIs.",
+      "cards": [
+        "Data Sources",
+        "Workbooks",
+        "Fields",
+        "Calculated Fields",
+        "Unique Connections",
+        "Reused Data Sources",
+        "Flat-File Sources",
+        "Certification Rate"
+      ],
+      "charts": [
+        {
+          "type": "clusteredBar",
+          "title": "Datasources by Project",
+          "axis": "Project[project_name]",
+          "value": "Data Sources"
+        },
+        {
+          "type": "clusteredColumn",
+          "title": "Workbooks by Project",
+          "axis": "Project[project_name]",
+          "value": "Workbooks"
+        }
+      ]
+    },
+    {
+      "name": "Connections",
+      "purpose": "Connectivity diversity + flat-file / one-off risk.",
+      "cards": [
+        "Unique Connections",
+        "Unique Connection Types",
+        "Flat-File Sources",
+        "Flat-File One-Off Sources"
+      ],
+      "charts": [
+        {
+          "type": "clusteredBar",
+          "title": "Connections by Type",
+          "axis": "Connections[connection_type]",
+          "value": "Unique Connections"
+        },
+        {
+          "type": "table",
+          "title": "Flat-File Datasources",
+          "columns": [
+            "Datasources[name]",
+            "Datasources[project_name]",
+            "Connections[connection_type]",
+            "Datasources[is_reused]"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Complexity",
+      "purpose": "Calculated-field + model-size effort signals.",
+      "cards": [
+        "Calculated Fields",
+        "Calc Field Density",
+        "Avg Fields per Source",
+        "Hidden Fields"
+      ],
+      "charts": [
+        {
+          "type": "clusteredBar",
+          "title": "Calculated Fields by Project",
+          "axis": "Project[project_name]",
+          "value": "Calculated Fields"
+        },
+        {
+          "type": "table",
+          "title": "Calc-Heavy Datasources",
+          "columns": [
+            "Datasources[name]",
+            "Datasources[field_count]"
+          ],
+          "measures": [
+            "Calculated Fields"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Governance",
+      "purpose": "Certification coverage + stale content to triage.",
+      "cards": [
+        "Certified Data Sources",
+        "Certification Rate",
+        "Extract-Based Sources",
+        "Stale Extracts",
+        "Stale Workbooks",
+        "Avg Extract Age (days)"
+      ],
+      "charts": [
+        {
+          "type": "clusteredColumn",
+          "title": "Stale Workbooks by Project",
+          "axis": "Project[project_name]",
+          "value": "Stale Workbooks"
+        },
+        {
+          "type": "table",
+          "title": "Stale Extract Datasources",
+          "columns": [
+            "Datasources[name]",
+            "Datasources[days_since_refresh]",
+            "Datasources[owner_name]"
+          ]
+        }
+      ]
+    }
+  ],
+  "measures": [
+    {
+      "name": "Data Sources",
+      "dax": "COUNTROWS('Datasources')",
+      "formatString": "#,0",
+      "description": "Total published Tableau datasources in the estate.",
+      "page": "Overview",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Workbooks",
+      "dax": "COUNTROWS('Workbooks')",
+      "formatString": "#,0",
+      "description": "Total Tableau workbooks.",
+      "page": "Overview",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Fields",
+      "dax": "COUNTROWS('Fields')",
+      "formatString": "#,0",
+      "description": "Total fields across all datasources.",
+      "page": "Overview",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Calculated Fields",
+      "dax": "CALCULATE(COUNTROWS('Fields'), 'Fields'[is_calculated] = TRUE())",
+      "formatString": "#,0",
+      "description": "Fields that are Tableau calculations (migration effort signal).",
+      "page": "Overview",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Unique Connections",
+      "dax": "CALCULATE(DISTINCTCOUNT('Connections'[database_name]), NOT ISBLANK('Connections'[database_name]))",
+      "formatString": "#,0",
+      "description": "Distinct upstream database/file connection instances.",
+      "page": "Overview",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Unique Connection Types",
+      "dax": "CALCULATE(DISTINCTCOUNT('Connections'[connection_type]), NOT ISBLANK('Connections'[connection_type]))",
+      "formatString": "#,0",
+      "description": "Distinct Tableau connector types (sqlserver, excel-direct, ...).",
+      "page": "Connections",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Flat-File Sources",
+      "dax": "CALCULATE(DISTINCTCOUNT('Connections'[datasource_id]), 'Connections'[is_flat_file] = TRUE())",
+      "formatString": "#,0",
+      "description": "Datasources with at least one flat-file/one-off connection.",
+      "page": "Overview",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Flat-File One-Off Sources",
+      "dax": "CALCULATE(DISTINCTCOUNT('Connections'[datasource_id]), 'Connections'[is_flat_file] = TRUE(), 'Datasources'[is_reused] = FALSE())",
+      "formatString": "#,0",
+      "description": "Flat-file datasources used by 0-1 workbooks (true one-offs).",
+      "page": "Connections",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Reused Data Sources",
+      "dax": "CALCULATE(COUNTROWS('Datasources'), 'Datasources'[is_reused] = TRUE())",
+      "formatString": "#,0",
+      "description": "Datasources consumed by more than one workbook.",
+      "page": "Overview",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Certified Data Sources",
+      "dax": "CALCULATE(COUNTROWS('Datasources'), 'Datasources'[is_certified] = TRUE())",
+      "formatString": "#,0",
+      "description": "Datasources marked Certified in Tableau.",
+      "page": "Governance",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Extract-Based Sources",
+      "dax": "CALCULATE(COUNTROWS('Datasources'), 'Datasources'[has_extracts] = TRUE())",
+      "formatString": "#,0",
+      "description": "Datasources backed by a Tableau extract (vs live).",
+      "page": "Governance",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Stale Extracts",
+      "dax": "CALCULATE(COUNTROWS('Datasources'), 'Datasources'[is_refresh_stale] = TRUE())",
+      "formatString": "#,0",
+      "description": "Extract datasources not refreshed within STALE_DAYS.",
+      "page": "Governance",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Stale Workbooks",
+      "dax": "CALCULATE(COUNTROWS('Workbooks'), 'Workbooks'[is_content_stale] = TRUE())",
+      "formatString": "#,0",
+      "description": "Workbooks not updated within STALE_DAYS.",
+      "page": "Governance",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Hidden Fields",
+      "dax": "CALCULATE(COUNTROWS('Fields'), 'Fields'[is_hidden] = TRUE())",
+      "formatString": "#,0",
+      "description": "Fields hidden in Tableau (often safe to drop on migration).",
+      "page": "Complexity",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Avg Extract Age (days)",
+      "dax": "AVERAGEX(FILTER('Datasources', 'Datasources'[has_extracts] = TRUE()), 'Datasources'[days_since_refresh])",
+      "formatString": "#,0.0",
+      "description": "Average days since last refresh across extract datasources.",
+      "page": "Governance",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Avg Fields per Source",
+      "dax": "DIVIDE(COUNTROWS('Fields'), COUNTROWS('Datasources'))",
+      "formatString": "#,0.0",
+      "description": "Average field count per datasource (model-size signal).",
+      "page": "Complexity",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Calc Field Density",
+      "dax": "DIVIDE([Calculated Fields], COUNTROWS('Datasources'))",
+      "formatString": "#,0.00",
+      "description": "Calculated fields per datasource (translation effort signal).",
+      "page": "Complexity",
+      "visual": "card",
+      "table": "_Metrics"
+    },
+    {
+      "name": "Certification Rate",
+      "dax": "DIVIDE([Certified Data Sources], [Data Sources])",
+      "formatString": "0.0%",
+      "description": "Share of datasources that are certified.",
+      "page": "Governance",
+      "visual": "card",
+      "table": "_Metrics"
+    }
+  ]
+}

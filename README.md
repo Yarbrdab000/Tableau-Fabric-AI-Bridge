@@ -30,14 +30,19 @@ Tableau Cloud / Server
         ├── Play 3 ──► h1_ultrastore
         │               {datasource}_{table}    ← one Delta table per upstream source
         │
-        └── Play 4 ──► Fabric Workspace
-                        {Datasource Name}       ← one semantic model per datasource
-                        DirectLake → h1_ultrastore
+        ├── Play 4 ──► Fabric Workspace
+        │               {Datasource Name}       ← one semantic model per datasource
+        │               DirectLake → h1_ultrastore
+        │
+        └── Play 5 ──► Fabric Workspace
+                        Tableau Migration Assessment  ← estate KPI model + dashboard
+                        DirectLake → Metadata_Lakehouse
 ```
 
-**Run order: Play 2 → Play 3 → Play 4**
+**Run order: Play 2 → Play 3 → Play 4** (Play 5 runs straight off Play 2)
 
-Play 2 builds the manifest. Play 3 lands the data. Play 4 builds the models.
+Play 2 builds the manifest. Play 3 lands the data. Play 4 builds the models. Play 5
+assesses the estate for migration.
 
 ---
 
@@ -103,6 +108,16 @@ Automatically generates and deploys a Power BI semantic model for every Tableau 
 
 **Input:** Play 2 metadata + Play 3 Delta tables
 **Output:** Deployed semantic models in Fabric workspace — one per Tableau datasource
+
+---
+
+### [Play 5 — Migration Assessment](Play5/Play5_README.md)
+Builds a single estate **migration-assessment** semantic model over the Play 2 metadata — datasource and workbook counts, connection diversity, flat-file/one-off risk, datasource reuse, calculated-field complexity, certification coverage, and stale content — plus a deployable four-page Power BI dashboard template. Runs straight off Play 2; no Play 3/4 dependency.
+
+**Use case:** The "should we migrate, and what will it cost?" lens. Point it at a customer's Tableau estate and the dashboard quantifies migration scope on day one — before anyone commits to moving anything.
+
+**Input:** Play 2 metadata
+**Output:** `Tableau Migration Assessment` semantic model (DirectLake → Metadata_Lakehouse) + dashboard template
 
 ---
 
@@ -231,7 +246,13 @@ Play 2 always runs against the full environment — it's the manifest, not the m
 ├── Play3/
 │   ├── Play3_README.md
 │   └── Play3_Tableau_VDS_Bridge.ipynb
-└── Play4/
-    ├── Play4_README.md
-    └── Play4_Tableau_Semantic_Model_Generator.ipynb
+├── Play4/
+│   ├── Play4_README.md
+│   └── Play4_Tableau_Semantic_Model_Generator.ipynb
+└── Play5/
+    ├── Play5_README.md
+    ├── Play5_Migration_Assessment.ipynb
+    └── dashboard/
+        ├── README.md
+        └── kpi_catalog.json
 ```

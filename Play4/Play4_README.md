@@ -142,7 +142,7 @@ Generated models use **DirectLake** mode — data is read directly from OneLake 
 
 On trial capacity, you may see: *"DAX queries may fall back to DirectQuery"* — this is normal and expected on small capacities. On a real F-SKU this warning goes away.
 
-For customers who want to reconnect tables to their original source systems (SQL Server, Snowflake, etc.) rather than keeping data in the Lakehouse, that's a connection string change per table — not a rebuild.
+For customers who want to reconnect tables to their original source systems (SQL Server, Snowflake, etc.) rather than keeping data in the Lakehouse, that's a **rebind of the data layer, not a model rebuild**. DirectLake models bind to Delta tables by *name and schema*, so swapping what populates a table (VDS pull → OneLake Shortcut / Mirroring / Data Factory / notebook ETL) leaves the model's measures, relationships, and column types untouched — as long as the table keeps the same name and column/type contract. That native cutover is customer- and source-specific (security, networking, scheduling) and is done outside this toolkit; the generated model is the durable asset that carries across it.
 
 ---
 
